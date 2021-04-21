@@ -1,0 +1,16 @@
+[package]
+name = "watertender"
+version = "0.1.0"
+authors = ["Masterchef365 <duncan.freeman1@gmail.com>"]
+edition = "2018"
+
+[features]
+default = ["winit", "openxr"]
+
+[dependencies]
+anyhow = "1"
+erupt = "0.18"
+winit = { version = "0.24", optional = true }
+openxr = { version = "0.14", optional = true }
+gpu-alloc-erupt = "0.3"
+gpu-alloc = "0.3"
