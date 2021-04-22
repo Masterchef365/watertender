@@ -278,16 +278,6 @@ checksum = "9ea835d29036a4087793836fa931b08837ad5e957da9e23886b29586fb9b6650"
 
 [[package]]
 name = "erupt"
-version = "0.17.1+169"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "54924d544a547550a83a0c998d1e3d8d8145621ad8e7b5c2827ba2e5089d4321"
-dependencies = [
- "bitflags",
- "libloading 0.7.0",
-]
-
-[[package]]
-name = "erupt"
 version = "0.18.0+174"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f344b7165d9c0fe06412c04a9b34f82bc0857e19fdba48d642b9fc8ec22ce09c"
@@ -337,9 +327,8 @@ checksum = "3dcaa9ae7725d12cdb85b3ad99a434db70b468c09ded17e012d86b5c1010f7a7"
 
 [[package]]
 name = "gpu-alloc"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e7724b9aef57ea36d70faf54e0ee6265f86e41de16bed8333efdeab5b00e16b"
+version = "0.4.0"
+source = "git+https://github.com/Friz64/gpu-alloc.git?branch=erupt-update-18#312eefe4aaf6a24db99e15295e559b90878a6793"
 dependencies = [
  "bitflags",
  "gpu-alloc-types",
@@ -348,19 +337,17 @@ dependencies = [
 [[package]]
 name = "gpu-alloc-erupt"
 version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "54b992d32d09460ae9a03b797f1d1fbc99d34693e86d1d6a9a3af829fd77776e"
+source = "git+https://github.com/Friz64/gpu-alloc.git?branch=erupt-update-18#312eefe4aaf6a24db99e15295e559b90878a6793"
 dependencies = [
- "erupt 0.17.1+169",
+ "erupt",
  "gpu-alloc-types",
  "tinyvec",
 ]
 
 [[package]]
 name = "gpu-alloc-types"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "54804d0d6bc9d7f26db4eaec1ad10def69b599315f487d32c334a80d1efe67a5"
+version = "0.2.1"
+source = "git+https://github.com/Friz64/gpu-alloc.git?branch=erupt-update-18#312eefe4aaf6a24db99e15295e559b90878a6793"
 dependencies = [
  "bitflags",
 ]
@@ -964,7 +951,7 @@ name = "watertender"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "erupt 0.18.0+174",
+ "erupt",
  "gpu-alloc",
  "gpu-alloc-erupt",
  "openxr",

@@ -3,7 +3,7 @@ use anyhow::{format_err, Result};
 pub use erupt::vk;
 use erupt::{utils::loading::DefaultEntryLoader, DeviceLoader, InstanceLoader};
 use gpu_alloc::GpuAllocator;
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex};
 use std::ffi::CString;
 
 #[cfg(feature = "openxr")]
@@ -11,6 +11,10 @@ mod openxr_backend;
 
 #[cfg(feature = "winit")]
 mod winit_backend;
+
+mod hardware_query;
+mod swapchain_images;
+mod alloc_helpers;
 
 /// All mainloops run on executors must implement this trait
 pub trait MainLoop: Sized {
@@ -65,15 +69,6 @@ pub struct Core {
     pub entry: DefaultEntryLoader,
 }
 
-impl Core {
-    /// Memory allocator
-    pub fn allocator(&self) -> Result<MutexGuard<GpuAllocator<vk::DeviceMemory>>> {
-        self.allocator
-            .lock()
-            .map_err(|_| format_err!("GpuAllocator mutex poisoned"))
-    }
-}
-
 /// Multi-platform event
 pub enum PlatformEvent<'a> {
     #[cfg(feature = "winit")]
@@ -93,10 +88,11 @@ pub enum Platform<'a> {
     OpenXr { xr_core: &'a openxr_backend::XrCore },
 }
 
-// TODO: Re-exported stuff from other files
-pub const FRAMES_IN_FLIGHT: usize = 3;
+pub const ENGINE_NAME: &str = "WaterTender";
+pub const FRAMES_IN_FLIGHT: usize = 2;
+pub const COLOR_FORMAT: vk::Format = vk::Format::B8G8R8A8_SRGB;
+pub const DEPTH_FORMAT: vk::Format = vk::Format::D32_SFLOAT;
 
-// TODO: Extend this 
 /// Application info
 pub struct AppInfo {
     name: CString,
@@ -108,6 +104,11 @@ pub struct AppInfo {
 impl AppInfo {
     pub fn with_app_version(mut self, major: u32, minor: u32, patch: u32) -> Self {
         self.version = vk::make_version(major, minor, patch);
+        self
+    }
+
+    pub fn with_app_version_vk(mut self, version: u32) -> Self {
+        self.version = version;
         self
     }
 
@@ -131,10 +132,28 @@ impl Default for AppInfo {
     /// Defaults to Vulkan 1.1, with validation layers disabled.
     fn default() -> Self {
         Self {
-            name: CString::new("Placeholder").unwrap(),
+            name: CString::new(env!("CARGO_PKG_NAME")).unwrap(),
             api_version: vk::make_version(1, 1, 0),
             version: vk::make_version(1, 0, 0),
             validation: false,
         }
     }
+}
+
+/// This crate's version as a Vulkan-formatted u32. Note that this requires `vk` to be in the
+/// current namespace.
+#[macro_export]
+macro_rules! cargo_vk_version {
+    () => {
+        erupt::vk1_0::make_version(
+            env!("CARGO_PKG_VERSION_MAJOR").parse().unwrap(),
+            env!("CARGO_PKG_VERSION_MINOR").parse().unwrap(),
+            env!("CARGO_PKG_VERSION_PATCH").parse().unwrap(),
+        )
+    };
+}
+
+/// Return the Vulkan-ready version of this engine
+pub fn engine_version() -> u32 {
+    cargo_vk_version!()
 }
