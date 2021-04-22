@@ -13,7 +13,7 @@ mod openxr_backend;
 mod winit_backend;
 
 /// All mainloops run on executors must implement this trait
-trait MainLoop: Sized {
+pub trait MainLoop: Sized {
     /// Creates a new instance of your app. Mainly useful for setting up data structures and
     /// allocating memory.
     fn new(init_cmds: vk::CommandBuffer, core: &Core, platform: Platform<'_>) -> Result<Self>;
@@ -97,7 +97,7 @@ pub enum Platform<'a> {
 pub const FRAMES_IN_FLIGHT: usize = 3;
 
 // TODO: Extend this 
-// Application info
+/// Application info
 pub struct AppInfo {
     name: CString,
     version: u32,
