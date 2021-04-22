@@ -9,3 +9,7 @@ pub struct XrCore {
 }
 
 //pub type SharedXrCore = Arc<XrCore>;
+
+pub fn launch<M: MainLoop>(info: AppInfo) -> Result<()> {
+    todo!()
+}

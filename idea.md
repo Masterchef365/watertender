@@ -28,9 +28,14 @@ Watertender supplies:
     * A slightly easier way to allocate resources than the gpu-alloc crate
 * A Bunch of pre-built renderer parts (Things for rendering meshes!)
     * These are mostly just dumb shortcuts, but there may be some more advanced modules (such as auto-sync)
-    * Cameras, platform-agnostic abstractions _over_ camerais  s
+    * Cameras, platform-agnostic abstractions _over_ cameras
 
 ## Goals
 * Flexibility through __ease of modification__ over generality
     * Vulkan is extremely versatile and fitting all use-cases would require Vulkan itself
 * Faster time-to-start for GPU programming
+
+## Ideas
+* Maybe many of the shortcuts are just traits implemented on &Core... 
+    * This would necessitate that the user imports the traits, but it would be nice and easy
+
