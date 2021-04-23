@@ -1,4 +1,4 @@
-use anyhow::{format_err, Result};
+use anyhow::Result;
 /// Vulkan implementation supplied by Erupt
 pub use erupt::vk;
 use erupt::{utils::loading::DefaultEntryLoader, DeviceLoader, InstanceLoader};
@@ -24,6 +24,9 @@ pub trait MainLoop: Sized {
 
     /// A frame handled by your app. The command buffers in `frame` are already reset and have begun, and will be ended and submitted.
     fn frame(&mut self, frame: Frame, core: &Core, platform: Platform<'_>) -> Result<()>;
+
+    /// Renderpass used to output to the framebuffer provided in Frame
+    fn renderpass(&self) -> vk::RenderPass;
 
     /// Handle an event produced by the Platform
     fn event(

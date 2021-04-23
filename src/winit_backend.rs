@@ -17,18 +17,25 @@ use winit::window::Window;
 use std::sync::Mutex;
 use gpu_alloc::GpuAllocator;
 
-/// Windowed mode Winit engine backend
+/// Winit engine backend
 pub struct WinitBackend {
-    swapchain: Option<khr_swapchain::SwapchainKHR>,
+    swapchain: Option<Swapchain>,
     image_available_semaphores: Vec<vk::Semaphore>,
     surface: khr_surface::SurfaceKHR,
     hardware: HardwareSelection,
+    frame_idx: usize,
     core: SharedCore,
+}
+
+/// Content recreated on swapchain invalidation
+struct Swapchain {
+    handle: khr_swapchain::SwapchainKHR,
+    images: SwapchainImages,
 }
 
 impl WinitBackend {
     /// Create a new engine instance.
-    pub fn new(window: &Window, application_name: &str, core: SharedCore) -> Result<Self> {
+    pub fn new(window: &Window, application_name: &str) -> Result<Self> {
         // Entry
         let entry = EntryLoader::new()?;
 
@@ -85,7 +92,7 @@ impl WinitBackend {
             Mutex::new(GpuAllocator::new(gpu_alloc::Config::i_am_prototyping(), device_props));
 
 
-        let prelude = SharedCore::new(crate::Core {
+        let core = SharedCore::new(crate::Core {
             graphics_queue,
             utility_queue,
             device,
@@ -94,18 +101,12 @@ impl WinitBackend {
             entry,
         });
 
-        /*
-        let meta = vk_core::CoreMeta {
-            queue_family_index: hardware.queue_family,
-            physical_device: hardware.physical_device,
-        };
-        */
 
         let image_available_semaphores = (0..crate::FRAMES_IN_FLIGHT)
             .map(|_| {
                 let create_info = vk::SemaphoreCreateInfoBuilder::new();
                 unsafe {
-                    prelude
+                    core
                         .device
                         .create_semaphore(&create_info, None, None)
                         .result()
@@ -118,24 +119,21 @@ impl WinitBackend {
             image_available_semaphores,
             hardware,
             surface,
-            core: prelude,
+            frame_idx: 0,
+            core,
         })
     }
 
-    // TODO: camera position should be driven by something external
-    // Winit keypresses used to move camera.
     pub fn next_frame<App: MainLoop>(&mut self, app: &mut App, core: &Core) -> Result<()> {
         if self.swapchain.is_none() {
-            self.create_swapchain()?;
+            self.swapchain = Some(self.create_swapchain(app.renderpass())?);
         }
-        let swapchain = self.swapchain.unwrap();
+        let swapchain = self.swapchain.as_mut().unwrap(); // Unreachable unwrap!
 
-        let (frame_idx, frame) = self.core.frame_sync.next_frame()?;
-
-        let image_available = self.image_available_semaphores[frame_idx];
+        let image_available = self.image_available_semaphores[self.frame_idx];
         let image_index = unsafe {
             self.core.device.acquire_next_image_khr(
-                swapchain,
+                swapchain.handle,
                 u64::MAX,
                 Some(image_available),
                 None,
@@ -153,27 +151,16 @@ impl WinitBackend {
 
         //let image: crate::swapchain_images::SwapChainImage = todo!();
         let image = {
-            self.core
-                .swapchain_images
+            self
+                .swapchain
                 .as_mut()
-                .unwrap()
-                .next_image(image_index, &frame)?
+                .expect("Swapchain never assigned!")
+                .images
+                .next_image(image_index, &in_flight_fence)?
         };
 
         // Write command buffers
         let command_buffer = self.core.write_command_buffers(frame_idx, packet, &image)?;
-
-        // Upload camera matrix and time
-        let mut data = [0.0; 32];
-        data.iter_mut()
-            .zip(
-                camera
-                    .matrix(image.extent.width, image.extent.height)
-                    .as_slice()
-                    .iter(),
-            )
-            .for_each(|(o, i)| *o = *i);
-        self.core.update_camera_data(frame_idx, &data)?;
 
         // Submit to the queue
         let command_buffers = [command_buffer];
@@ -224,18 +211,18 @@ impl WinitBackend {
     }
 
     fn free_swapchain(&mut self) -> Result<()> {
-        drop(self.core.swapchain_images.take());
-
-        unsafe {
-            self.core
-                .device
-                .destroy_swapchain_khr(self.swapchain.take(), None);
+        if let Some(swapchain) = self.swapchain.take() {
+            drop(swapchain.images);
+            unsafe {
+                self.core
+                    .device
+                    .destroy_swapchain_khr(Some(swapchain.handle), None);
+            }
         }
-
         Ok(())
     }
 
-    fn create_swapchain(&mut self) -> Result<()> {
+    fn create_swapchain(&mut self, render_pass: vk::RenderPass) -> Result<Swapchain> {
         let surface_caps = unsafe {
             self.core
                 .instance
@@ -268,33 +255,33 @@ impl WinitBackend {
             .clipped(true)
             .old_swapchain(khr_swapchain::SwapchainKHR::null());
 
-        let swapchain = unsafe {
+        let handle = unsafe {
             self.core
                 .device
                 .create_swapchain_khr(&create_info, None, None)
         }
         .result()?;
-        let swapchain_images = unsafe {
+        let images = unsafe {
             self.core
                 .device
-                .get_swapchain_images_khr(swapchain, None)
+                .get_swapchain_images_khr(handle, None)
         }
         .result()?;
 
-        self.swapchain = Some(swapchain);
-
         // TODO: Coagulate these two into one object?
-        self.swapchain = Some(swapchain);
 
-        self.core.swapchain_images = Some(SwapchainImages::new(
+        let images = Some(SwapchainImages::new(
             self.core.clone(),
             surface_caps.current_extent,
-            self.core.render_pass,
-            swapchain_images,
+            render_pass,
+            images,
             false,
         )?);
 
-        Ok(())
+        Ok(Swapchain {
+            images,
+            handle,
+        })
     }
 }
 

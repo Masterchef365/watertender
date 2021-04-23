@@ -3,6 +3,7 @@ use anyhow::Result;
 use erupt::{vk1_0 as vk, DeviceLoader};
 use gpu_alloc_erupt::EruptMemoryDevice;
 
+/// Collection of image content recreated on swapchain invaliddation 
 pub struct SwapchainImages {
     pub extent: vk::Extent2D,
     pub depth_image: vk::Image,
@@ -48,7 +49,7 @@ impl SwapchainImages {
         prelude: SharedCore,
         extent: vk::Extent2D,
         render_pass: vk::RenderPass,
-        swapchain_images: Vec<vk::Image>,
+        images: Vec<vk::Image>,
         vr: bool,
     ) -> Result<Self> {
         let layers = if vr { 2 } else { 1 };
@@ -122,7 +123,7 @@ impl SwapchainImages {
             unsafe { prelude.device.create_image_view(&create_info, None, None) }.result()?;
 
         // Build swapchain image views and buffers
-        let images = swapchain_images
+        let images = images
             .iter()
             .map(|&image| {
                 SwapChainImage::new(
