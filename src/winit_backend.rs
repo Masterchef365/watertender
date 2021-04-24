@@ -1,31 +1,75 @@
-use crate::{MainLoop, AppInfo, Core, SharedCore};
-use anyhow::{Result, Context};
 use crate::hardware_query::HardwareSelection;
+use crate::{AppInfo, Core, Platform, PlatformEvent, WinitMainLoop};
+use anyhow::{Context, Result};
 use erupt::{
     cstr,
     extensions::{khr_surface, khr_swapchain},
     utils::surface,
     vk1_0 as vk, DeviceLoader, EntryLoader, InstanceLoader,
 };
-use std::ffi::CString;
-use winit::window::{WindowBuilder, Window};
-use winit::event_loop::EventLoop;
-use std::sync::Mutex;
 use gpu_alloc::GpuAllocator;
+use std::ffi::CString;
+use std::sync::Mutex;
+use winit::{
+    event::{Event, WindowEvent},
+    event_loop::{ControlFlow, EventLoop},
+    window::{Window, WindowBuilder},
+};
 
-pub fn launch<M: MainLoop>(info: AppInfo) -> Result<()> {
+pub fn launch<M: WinitMainLoop + 'static>(info: AppInfo) -> Result<()> {
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
         .with_title(&info.name)
         .build(&event_loop)
         .context("Failed to create window")?;
 
-    let core = build_core(info, window)?;
-
-    Ok(())
+    let core = build_core(info, &window)?;
+    begin_loop::<M>(core, event_loop, window)
 }
 
-pub fn build_core(info: AppInfo, window: Window) -> Result<Core> {
+fn res(r: Result<()>) {
+    if let Err(e) = r {
+        eprintln!("Error: {}", e);
+        std::process::exit(-1);
+    }
+}
+
+pub fn begin_loop<M: WinitMainLoop + 'static>(
+    core: Core,
+    event_loop: EventLoop<()>,
+    window: Window,
+) -> Result<()> {
+    let mut app = M::new(
+        &core,
+        Platform::Winit {
+            window: &window,
+            flow: &mut Default::default(),
+        },
+    )?;
+
+    event_loop.run(move |event, _, control_flow| {
+        res(app.event(
+            PlatformEvent::Winit(&event),
+            &core,
+            Platform::Winit {
+                window: &window,
+                flow: control_flow,
+            },
+        ));
+
+        match event {
+            Event::MainEventsCleared => {
+                window.request_redraw();
+            }
+            Event::RedrawRequested(_) => {
+                //app.frame
+            }
+            _ => (),
+        }
+    });
+}
+
+pub fn build_core(info: AppInfo, window: &Window) -> Result<Core> {
     // Entry
     let entry = EntryLoader::new()?;
 
@@ -41,7 +85,7 @@ pub fn build_core(info: AppInfo, window: Window) -> Result<Core> {
 
     // Instance and device layers and extensions
     let mut instance_layers = Vec::new();
-    let mut instance_extensions = surface::enumerate_required_extensions(&window).result()?;
+    let mut instance_extensions = surface::enumerate_required_extensions(window).result()?;
     let mut device_layers = Vec::new();
     let device_extensions = vec![khr_swapchain::KHR_SWAPCHAIN_EXTENSION_NAME];
 
@@ -62,7 +106,7 @@ pub fn build_core(info: AppInfo, window: Window) -> Result<Core> {
     let mut instance = InstanceLoader::new(&entry, &create_info, None)?;
 
     // Surface
-    let surface = unsafe { surface::create_surface(&mut instance, &window, None) }.result()?;
+    let surface = unsafe { surface::create_surface(&mut instance, window, None) }.result()?;
 
     // Hardware selection
     let hardware = HardwareSelection::query(&instance, surface, &device_extensions)?;
@@ -82,9 +126,12 @@ pub fn build_core(info: AppInfo, window: Window) -> Result<Core> {
     let device = DeviceLoader::new(&instance, hardware.physical_device, &create_info, None)?;
     let queue = unsafe { device.get_device_queue(hardware.queue_family, 0, None) };
 
-    let device_props = unsafe { gpu_alloc_erupt::device_properties(&instance, hardware.physical_device)? };
-    let allocator =
-        Mutex::new(GpuAllocator::new(gpu_alloc::Config::i_am_prototyping(), device_props));
+    let device_props =
+        unsafe { gpu_alloc_erupt::device_properties(&instance, hardware.physical_device)? };
+    let allocator = Mutex::new(GpuAllocator::new(
+        gpu_alloc::Config::i_am_prototyping(),
+        device_props,
+    ));
 
     Ok(Core {
         physical_device: hardware.physical_device,

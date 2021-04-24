@@ -5,7 +5,11 @@ use anyhow::Result;
 struct App;
 
 fn main() -> Result<()> {
-    winit_backend::launch::<App>(Default::default())
+    if std::env::args().count() > 1 {
+        openxr_backend::launch::<App>(Default::default())
+    } else {
+        winit_backend::launch::<App>(Default::default())
+    }
 }
 
 /// All mainloops run on executors must implement this trait
@@ -29,12 +33,19 @@ impl MainLoop for App {
     /// Handle an event produced by the Platform
     fn event(
         &mut self,
-        event: PlatformEvent<'_>,
+        event: PlatformEvent<'_, '_>,
         core: &Core,
         platform: Platform<'_>,
     ) -> Result<()> {
+        if let PlatformEvent::Winit(ev) = event {
+            dbg!(ev);
+        }
         Ok(())
     }
 }
 
-
+impl WinitMainLoop for App {
+    fn winit_sync(&self) -> (vk::Semaphore, vk::Semaphore) {
+        todo!()
+    }
+}
