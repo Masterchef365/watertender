@@ -4,14 +4,13 @@ pub use erupt::vk;
 use anyhow::Result;
 use erupt::{utils::loading::DefaultEntryLoader, DeviceLoader, InstanceLoader};
 use gpu_alloc::GpuAllocator;
-use std::ffi::CString;
 use std::sync::{Arc, Mutex};
 
 #[cfg(feature = "openxr")]
-mod openxr_backend;
+pub mod openxr_backend;
 
 #[cfg(feature = "winit")]
-mod winit_backend;
+pub mod winit_backend;
 
 mod alloc_helpers;
 mod hardware_query;
@@ -59,11 +58,17 @@ pub struct Core {
     /// General purpose queue, must be graphics and compute capable
     pub queue: vk::Queue,
 
+    /// Family the queue is from
+    pub queue_family: u32,
+
     /// GPU memory allocator
     pub allocator: Mutex<GpuAllocator<vk::DeviceMemory>>,
 
     /// Vulkan device
     pub device: DeviceLoader,
+
+    /// Vulkan physical device
+    pub physical_device: vk::PhysicalDevice,
 
     /// Vulkan instance
     pub instance: InstanceLoader,
@@ -92,44 +97,37 @@ pub enum Platform<'a> {
 }
 
 pub const ENGINE_NAME: &str = "WaterTender";
+/// If you need a different swapchain format, modify the source or get a different engine. I draw
+/// the line at color format for presentation, sorry.
 pub const COLOR_FORMAT: vk::Format = vk::Format::B8G8R8A8_SRGB;
 
 /// Application info
 pub struct AppInfo {
-    name: CString,
-    version: u32,
-    api_version: u32,
-    validation: bool,
+    pub(crate) name: String,
+    pub(crate) version: u32,
+    pub(crate) api_version: u32,
+    pub(crate) validation: bool,
 }
 
+// TODO: Device extensions!
 impl AppInfo {
-    pub fn with_app_version(mut self, major: u32, minor: u32, patch: u32) -> Self {
+    pub fn app_version(mut self, major: u32, minor: u32, patch: u32) -> Self {
         self.version = vk::make_version(major, minor, patch);
         self
     }
 
-    pub fn with_app_version_vk(mut self, version: u32) -> Self {
-        self.version = version;
-        self
-    }
-
-    pub fn with_vk_version(mut self, major: u32, minor: u32, patch: u32) -> Self {
+    pub fn vk_version(mut self, major: u32, minor: u32, patch: u32) -> Self {
         self.api_version = vk::make_version(major, minor, patch);
         self
     }
 
-    pub fn with_vk_version_vk(mut self, major: u32, minor: u32, patch: u32) -> Self {
-        self.api_version = vk::make_version(major, minor, patch);
-        self
-    }
-
-    pub fn with_name(mut self, name: &str) -> Result<Self> {
-        self.name = CString::new(name)?;
+    pub fn name(mut self, name: String) -> Result<Self> {
+        self.name = name;
         Ok(self)
     }
 
-    pub fn with_validation(mut self, validation: bool) -> Self {
-        self.validation = true;
+    pub fn validation(mut self, validation: bool) -> Self {
+        self.validation = validation;
         self
     }
 }
@@ -138,7 +136,7 @@ impl Default for AppInfo {
     /// Defaults to Vulkan 1.1, with validation layers disabled.
     fn default() -> Self {
         Self {
-            name: CString::new(env!("CARGO_PKG_NAME")).unwrap(),
+            name: env!("CARGO_PKG_NAME").to_owned(),
             api_version: vk::make_version(1, 1, 0),
             version: vk::make_version(1, 0, 0),
             validation: false,
