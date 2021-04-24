@@ -1,10 +1,11 @@
-use anyhow::Result;
 /// Vulkan implementation supplied by Erupt
 pub use erupt::vk;
+
+use anyhow::Result;
 use erupt::{utils::loading::DefaultEntryLoader, DeviceLoader, InstanceLoader};
 use gpu_alloc::GpuAllocator;
-use std::sync::{Arc, Mutex};
 use std::ffi::CString;
+use std::sync::{Arc, Mutex};
 
 #[cfg(feature = "openxr")]
 mod openxr_backend;
@@ -12,21 +13,20 @@ mod openxr_backend;
 #[cfg(feature = "winit")]
 mod winit_backend;
 
-mod hardware_query;
-mod swapchain_images;
 mod alloc_helpers;
+mod hardware_query;
 
 /// All mainloops run on executors must implement this trait
 pub trait MainLoop: Sized {
     /// Creates a new instance of your app. Mainly useful for setting up data structures and
     /// allocating memory.
-    fn new(init_cmds: vk::CommandBuffer, core: &Core, platform: Platform<'_>) -> Result<Self>;
+    fn new(core: &Core, platform: Platform<'_>) -> Result<Self>;
 
     /// A frame handled by your app. The command buffers in `frame` are already reset and have begun, and will be ended and submitted.
     fn frame(&mut self, frame: Frame, core: &Core, platform: Platform<'_>) -> Result<()>;
 
     /// Renderpass used to output to the framebuffer provided in Frame
-    fn renderpass(&self) -> vk::RenderPass;
+    fn swapchain_resize(&self, images: Vec<vk::Image>, extent: vk::Extent2D) -> Result<()>;
 
     /// Handle an event produced by the Platform
     fn event(
@@ -37,14 +37,18 @@ pub trait MainLoop: Sized {
     ) -> Result<()>;
 }
 
+/// Trait required by the winit backend
+trait WinitMainLoop: MainLoop {
+    /// Return (image_available, render_finished). The first semaphore will be signalled by the runtime when the frame is available, and the runtime will wait to present the image until the second semaphore has been signalled.
+    /// Therefore you will want to wait on the first semaphore to begin rendering, and signal the second semaphore when you are finished.
+    /// This method will be called once before each `frame()`.
+    fn winit_sync(&self) -> (vk::Semaphore, vk::Semaphore);
+}
+
 /// Interface to the gpu's commands
 pub struct Frame {
-    /// Which in-flight frame this is
-    pub index: usize,
-    pub serial_cmds: vk::CommandBuffer,
-    pub frame_cmds: vk::CommandBuffer,
-    pub framebuffer: vk::Framebuffer,
-    pub extent: vk::Extent2D,
+    /// Swapchain image selection
+    pub swapchain_index: usize,
 }
 
 /// An alias of `Arc<Core>`. Useful to include in subsystems for easy access to Vulkan context
@@ -52,12 +56,8 @@ pub type SharedCore = Arc<Core>;
 
 /// A collection of commonly referenced Vulkan context
 pub struct Core {
-    /// The utility queue should be compute-capable. Note that it should share a queue family with
-    /// the graphics queue!
-    pub utility_queue: vk::Queue,
-
-    /// The graphics queue should be graphics-capable
-    pub graphics_queue: vk::Queue,
+    /// General purpose queue, must be graphics and compute capable
+    pub queue: vk::Queue,
 
     /// GPU memory allocator
     pub allocator: Mutex<GpuAllocator<vk::DeviceMemory>>,
@@ -92,9 +92,7 @@ pub enum Platform<'a> {
 }
 
 pub const ENGINE_NAME: &str = "WaterTender";
-pub const FRAMES_IN_FLIGHT: usize = 2;
 pub const COLOR_FORMAT: vk::Format = vk::Format::B8G8R8A8_SRGB;
-pub const DEPTH_FORMAT: vk::Format = vk::Format::D32_SFLOAT;
 
 /// Application info
 pub struct AppInfo {
@@ -116,6 +114,11 @@ impl AppInfo {
     }
 
     pub fn with_vk_version(mut self, major: u32, minor: u32, patch: u32) -> Self {
+        self.api_version = vk::make_version(major, minor, patch);
+        self
+    }
+
+    pub fn with_vk_version_vk(mut self, major: u32, minor: u32, patch: u32) -> Self {
         self.api_version = vk::make_version(major, minor, patch);
         self
     }
@@ -148,7 +151,7 @@ impl Default for AppInfo {
 #[macro_export]
 macro_rules! cargo_vk_version {
     () => {
-        erupt::vk1_0::make_version(
+        vk::make_version(
             env!("CARGO_PKG_VERSION_MAJOR").parse().unwrap(),
             env!("CARGO_PKG_VERSION_MINOR").parse().unwrap(),
             env!("CARGO_PKG_VERSION_PATCH").parse().unwrap(),

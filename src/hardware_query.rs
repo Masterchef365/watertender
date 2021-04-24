@@ -48,7 +48,7 @@ impl HardwareSelection {
                 let format = match formats
                     .iter()
                     .find(|surface_format| {
-                        surface_format.format == vk::Format::B8G8R8A8_SRGB
+                        surface_format.format == crate::COLOR_FORMAT
                             && surface_format.color_space
                                 == khr_surface::ColorSpaceKHR::SRGB_NONLINEAR_KHR
                     })
