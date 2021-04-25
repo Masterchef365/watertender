@@ -1,5 +1,6 @@
 use erupt::vk;
 use crate::SharedCore;
+use crate::shortcuts::MemObject;
 use anyhow::Result;
 
 /// Framebuffer manager, includes depth image and color image views

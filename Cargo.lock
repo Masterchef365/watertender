@@ -277,6 +277,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9ea835d29036a4087793836fa931b08837ad5e957da9e23886b29586fb9b6650"
 
 [[package]]
+name = "drop_bomb"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9bda8e21c04aca2ae33ffc2fd8c23134f3cac46db123ba97bd9d3f3b8a4a85e1"
+
+[[package]]
 name = "erupt"
 version = "0.18.0+174"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -951,6 +957,7 @@ name = "watertender"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "drop_bomb",
  "erupt",
  "gpu-alloc",
  "gpu-alloc-erupt",

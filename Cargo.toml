@@ -12,7 +12,8 @@ anyhow = "1"
 erupt = "0.18"
 winit = { version = "0.24", optional = true }
 openxr = { version = "0.14", optional = true }
-#gpu-alloc-erupt = "0.3"
-#gpu-alloc = "0.3"
+drop_bomb = "0.1"
 gpu-alloc-erupt = { git = "https://github.com/Friz64/gpu-alloc.git", branch = "erupt-update-18" }
 gpu-alloc = { git = "https://github.com/Friz64/gpu-alloc.git", branch = "erupt-update-18" }
+#gpu-alloc-erupt = "0.3"
+#gpu-alloc = "0.3"
