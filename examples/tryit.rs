@@ -1,13 +1,14 @@
 #![allow(unused)]
 use anyhow::Result;
-use shortcuts::Synchronization;
+use shortcuts::{Synchronization, FramebufferManager, create_render_pass};
 use watertender::*;
 
 const FRAMES_IN_FLIGHT: usize = 2;
 
 struct App {
-    framebuffer: Option<FramebufferManager>,
+    framebuffer: FramebufferManager,
     sync: Synchronization,
+    render_pass: vk::RenderPass,
     frame: usize,
 }
 
@@ -29,8 +30,11 @@ impl MainLoop for App {
             FRAMES_IN_FLIGHT,
             matches!(platform, Platform::Winit { .. }),
         )?;
+        
+        let framebuffer = FramebufferManager::new(core.clone(), platform.is_vr());
+        let render_pass = create_render_pass(&core, platform.is_vr())?;
 
-        Ok(App { sync, frame: 0 })
+        Ok(App { sync, framebuffer, render_pass, frame: 0 })
     }
 
     /// A frame handled by your app. The command buffers in `frame` are already reset and have begun, and will be ended and submitted.
@@ -40,8 +44,8 @@ impl MainLoop for App {
     }
 
     /// Renderpass used to output to the framebuffer provided in Frame
-    fn swapchain_resize(&self, images: Vec<vk::Image>, extent: vk::Extent2D) -> Result<()> {
-        Ok(())
+    fn swapchain_resize(&mut self, images: Vec<vk::Image>, extent: vk::Extent2D) -> Result<()> {
+        self.framebuffer.resize(images, extent, self.render_pass)
     }
 
     /// Handle an event produced by the Platform

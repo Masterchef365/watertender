@@ -31,7 +31,7 @@ pub trait MainLoop: Sized {
     fn frame(&mut self, frame: Frame, core: &SharedCore, platform: Platform<'_>) -> Result<()>;
 
     /// Renderpass used to output to the framebuffer provided in Frame
-    fn swapchain_resize(&self, images: Vec<vk::Image>, extent: vk::Extent2D) -> Result<()>;
+    fn swapchain_resize(&mut self, images: Vec<vk::Image>, extent: vk::Extent2D) -> Result<()>;
 
     /// Handle an event produced by the Platform
     fn event(
@@ -111,12 +111,12 @@ impl Platform<'_> {
     }
 }
 
-pub const ENGINE_NAME: &str = "WaterTender";
 /// If you need a different swapchain format, modify the source or get a different engine. I draw
 /// the line at color format for presentation, sorry.
 pub const COLOR_FORMAT: vk::Format = vk::Format::B8G8R8A8_SRGB;
-/// Ditto
 pub const COLOR_SPACE: ColorSpaceKHR = ColorSpaceKHR::SRGB_NONLINEAR_KHR;
+pub const DEPTH_FORMAT: vk::Format = vk::Format::D32_SFLOAT;
+pub const ENGINE_NAME: &str = "WaterTender";
 
 /// Application info
 pub struct AppInfo {

@@ -6,15 +6,13 @@ use anyhow::Result;
 pub struct FramebufferManager {
     internals: Option<Internals>,
     core: SharedCore,
-    depth_format: vk::Format,
     vr: bool,
 }
 
 impl FramebufferManager {
-    pub fn new(core: SharedCore, depth_format: vk::Format, vr: bool) -> Self {
+    pub fn new(core: SharedCore, vr: bool) -> Self {
         Self {
             internals: None,
-            depth_format,
             core,
             vr,
         }
@@ -26,7 +24,7 @@ impl FramebufferManager {
         frame.framebuffer
     }
 
-    pub fn resize(&mut self, extent: vk::Extent2D, images: Vec<vk::Image>) -> Result<()> {
+    pub fn resize(&mut self, images: Vec<vk::Image>, extent: vk::Extent2D, render_pass: vk::RenderPass) -> Result<()> {
         todo!("Make easy alloc first!")
     }
 
