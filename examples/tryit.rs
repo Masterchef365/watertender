@@ -19,10 +19,11 @@ struct App {
 }
 
 fn main() -> Result<()> {
+    let info = AppInfo::default().validation(true);
     if std::env::args().count() > 1 {
-        openxr_backend::launch::<App>(Default::default())
+        openxr_backend::launch::<App>(info)
     } else {
-        winit_backend::launch::<App>(Default::default())
+        winit_backend::launch::<App>(info)
     }
 }
 
@@ -55,7 +56,7 @@ impl MainLoop for App {
 
         // Create descriptor layout
         let bindings = [
-            vk::DescriptorSetLayoutBindingBuilder::new()
+            /*vk::DescriptorSetLayoutBindingBuilder::new()
                 .binding(0)
                 .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
                 .descriptor_count(1)
@@ -64,7 +65,7 @@ impl MainLoop for App {
                 .binding(1)
                 .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
                 .descriptor_count(1)
-                .stage_flags(vk::ShaderStageFlags::VERTEX | vk::ShaderStageFlags::FRAGMENT),
+                .stage_flags(vk::ShaderStageFlags::VERTEX | vk::ShaderStageFlags::FRAGMENT),*/
         ];
 
         let descriptor_set_layout_ci =
@@ -209,6 +210,22 @@ impl MainLoop for App {
                 .offset(vk::Offset2D { x: 0, y: 0 })
                 .extent(self.framebuffer.extent())];
 
+            // Draw cmds
+            core.device.cmd_bind_vertex_buffers(
+                command_buffer,
+                0,
+                &[self.vertex_buffer.instance()],
+                &[0],
+            );
+            core.device.cmd_bind_pipeline(
+                command_buffer,
+                vk::PipelineBindPoint::GRAPHICS,
+                self.pipeline,
+            );
+            core.device.cmd_draw(command_buffer, 3, 1, 0, 0);
+
+            // End draw cmds
+
             core.device.cmd_end_render_pass(command_buffer);
 
             core.device.end_command_buffer(command_buffer).result()?;
@@ -251,9 +268,7 @@ impl MainLoop for App {
     ) -> Result<()> {
         if let PlatformEvent::Winit(winit::event::Event::WindowEvent { event, .. }) = event {
             if let winit::event::WindowEvent::CloseRequested = event {
-                if let Platform::Winit {
-                    flow, ..
-                } = platform {
+                if let Platform::Winit { flow, .. } = platform {
                     *flow = winit::event_loop::ControlFlow::Exit;
                 }
             }
