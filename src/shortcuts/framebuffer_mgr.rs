@@ -1,5 +1,5 @@
 use crate::shortcuts::MemObject;
-use crate::SharedCore;
+use crate::{SharedCore, Core};
 use anyhow::Result;
 use erupt::vk;
 use gpu_alloc::UsageFlags;
@@ -48,6 +48,10 @@ impl FramebufferManager {
         render_pass: vk::RenderPass,
     ) -> Result<()> {
         let layers = if self.vr { 2 } else { 1 };
+
+        if let Some(internals) = self.internals.take() {
+            internals.free(&self.core);
+        }
 
         // Create depth image
         let create_info = vk::ImageCreateInfoBuilder::new()
@@ -151,5 +155,33 @@ impl FramebufferManager {
             .as_ref()
             .expect("Dimensions called before resize")
             .extent
+    }
+}
+
+impl Drop for FramebufferManager {
+    fn drop(&mut self) {
+        if let Some(internals) = self.internals.take() {
+            internals.free(&self.core);
+        }
+    }
+}
+
+impl Internals {
+    fn free(mut self, core: &Core) {
+        unsafe {
+            core.device.device_wait_idle().result().unwrap();
+            for frame in self.frames.drain(..) {
+                core
+                    .device
+                    .destroy_framebuffer(Some(frame.framebuffer), None);
+                core
+                    .device
+                    .destroy_image_view(Some(frame.image_view), None);
+            }
+            core
+                .device
+                .destroy_image_view(Some(self.depth_image_view), None);
+            self.depth_image.free(core);
+        }
     }
 }
