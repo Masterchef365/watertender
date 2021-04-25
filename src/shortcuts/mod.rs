@@ -8,3 +8,5 @@ mod memory;
 pub use memory::{MemObject, MemoryBlock, buffer_memory_req, image_memory_req, UsageFlags};
 mod vertex;
 pub use vertex::Vertex;
+mod shader;
+pub use shader::shader;

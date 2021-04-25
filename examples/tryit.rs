@@ -2,6 +2,7 @@
 use anyhow::Result;
 use shortcuts::{
     create_render_pass, FramebufferManager, MemObject, Synchronization, UsageFlags, Vertex,
+    shader,
 };
 use watertender::*;
 
@@ -25,6 +26,7 @@ fn main() -> Result<()> {
 
 impl MainLoop for App {
     fn new(core: &SharedCore, platform: Platform<'_>) -> Result<Self> {
+        // External stuff
         let sync = Synchronization::new(
             core.clone(),
             FRAMES_IN_FLIGHT,
@@ -34,6 +36,7 @@ impl MainLoop for App {
         let framebuffer = FramebufferManager::new(core.clone(), platform.is_vr());
         let render_pass = create_render_pass(&core, platform.is_vr())?;
 
+        // Vertex buffer
         let vertices = vec![
             Vertex::new([-0.5, 0.5, 0.], [1., 0., 0.]),
             Vertex::new([0.5, 0.5, 0.], [0., 1., 0.]),
@@ -47,6 +50,36 @@ impl MainLoop for App {
 
         let mut vertex_buffer = MemObject::new_buffer(core, create_info, UsageFlags::UPLOAD)?;
         vertex_buffer.write_bytes(core, 0, bytemuck::cast_slice(&vertices))?;
+
+        // Descriptor sets
+        let descriptor_set_layouts = [descriptor_set_layout];
+
+        // Pipeline layout
+        let push_constant_ranges = [vk::PushConstantRangeBuilder::new()
+            .stage_flags(vk::ShaderStageFlags::VERTEX)
+            .offset(0)
+            .size(std::mem::size_of::<[f32; 16]>() as u32)];
+
+        let create_info = vk::PipelineLayoutCreateInfoBuilder::new()
+            .push_constant_ranges(&push_constant_ranges)
+            .set_layouts(&descriptor_set_layouts);
+
+        let pipeline_layout = unsafe {
+            prelude
+                .device
+                .create_pipeline_layout(&create_info, None, None)
+        }
+        .result()?;
+
+        // Pipeline
+        let pipeline = shader(
+            core, 
+            include_bytes!("examples/unlit.vert.spv"),
+            include_bytes!("examples/unlit.frag.spv"),
+            vk::PrimitiveTopology::TRIANGLE_LIST,
+            render_pass,
+            pipeline_layout,
+        )?;
 
         Ok(App {
             sync,
@@ -84,5 +117,11 @@ impl WinitMainLoop for App {
         self.sync
             .swapchain_sync(self.frame)
             .expect("khr_sync not set")
+    }
+}
+
+impl Drop for App {
+    fn drop(&mut self) {
+        self.vertex_buffer.free(&self.core);
     }
 }
