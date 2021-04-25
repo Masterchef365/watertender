@@ -25,10 +25,10 @@ pub mod shortcuts;
 pub trait MainLoop: Sized {
     /// Creates a new instance of your app. Mainly useful for setting up data structures and
     /// allocating memory.
-    fn new(core: &Core, platform: Platform<'_>) -> Result<Self>;
+    fn new(core: &SharedCore, platform: Platform<'_>) -> Result<Self>;
 
     /// A frame handled by your app. The command buffers in `frame` are already reset and have begun, and will be ended and submitted.
-    fn frame(&mut self, frame: Frame, core: &Core, platform: Platform<'_>) -> Result<()>;
+    fn frame(&mut self, frame: Frame, core: &SharedCore, platform: Platform<'_>) -> Result<()>;
 
     /// Renderpass used to output to the framebuffer provided in Frame
     fn swapchain_resize(&self, images: Vec<vk::Image>, extent: vk::Extent2D) -> Result<()>;

@@ -1,8 +1,14 @@
 #![allow(unused)]
 use watertender::*;
 use anyhow::Result;
+use shortcuts::Synchronization;
 
-struct App;
+const FRAMES_IN_FLIGHT: usize = 2;
+
+struct App {
+    sync: Synchronization,
+    frame: usize
+}
 
 fn main() -> Result<()> {
     if std::env::args().count() > 1 {
@@ -16,12 +22,17 @@ fn main() -> Result<()> {
 impl MainLoop for App {
     /// Creates a new instance of your app. Mainly useful for setting up data structures and
     /// allocating memory.
-    fn new(core: &Core, platform: Platform<'_>) -> Result<Self> {
-        Ok(App)
+    fn new(core: &SharedCore, platform: Platform<'_>) -> Result<Self> {
+        let sync = Synchronization::new(core.clone(), FRAMES_IN_FLIGHT, matches!(platform, Platform::Winit { .. }))?;
+        Ok(App {
+            sync,
+            frame: 0,
+        })
     }
 
     /// A frame handled by your app. The command buffers in `frame` are already reset and have begun, and will be ended and submitted.
-    fn frame(&mut self, frame: Frame, core: &Core, platform: Platform<'_>) -> Result<()> {
+    fn frame(&mut self, frame: Frame, core: &SharedCore, platform: Platform<'_>) -> Result<()> {
+        self.frame = (self.frame + 1) % FRAMES_IN_FLIGHT;
         Ok(())
     }
 
@@ -46,6 +57,6 @@ impl MainLoop for App {
 
 impl WinitMainLoop for App {
     fn winit_sync(&self) -> (vk::Semaphore, vk::Semaphore) {
-        todo!()
+        self.sync.swapchain_sync(self.frame).expect("khr_sync not set")
     }
 }
