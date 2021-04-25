@@ -1,6 +1,7 @@
 /// Vulkan implementation supplied by Erupt
 pub use erupt::vk;
 
+use erupt::extensions::khr_surface::ColorSpaceKHR;
 use anyhow::Result;
 use erupt::{utils::loading::DefaultEntryLoader, DeviceLoader, InstanceLoader};
 use gpu_alloc::GpuAllocator;
@@ -52,7 +53,7 @@ pub trait WinitMainLoop: MainLoop {
 /// Interface to the gpu's commands
 pub struct Frame {
     /// Swapchain image selection
-    pub swapchain_index: usize,
+    pub swapchain_index: u32,
 }
 
 /// An alias of `Arc<Core>`. Useful to include in subsystems for easy access to Vulkan context
@@ -114,6 +115,8 @@ pub const ENGINE_NAME: &str = "WaterTender";
 /// If you need a different swapchain format, modify the source or get a different engine. I draw
 /// the line at color format for presentation, sorry.
 pub const COLOR_FORMAT: vk::Format = vk::Format::B8G8R8A8_SRGB;
+/// Ditto
+pub const COLOR_SPACE: ColorSpaceKHR = ColorSpaceKHR::SRGB_NONLINEAR_KHR;
 
 /// Application info
 pub struct AppInfo {

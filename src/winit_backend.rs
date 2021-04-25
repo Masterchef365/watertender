@@ -1,17 +1,20 @@
 use crate::hardware_query::HardwareSelection;
-use crate::{AppInfo, Core, Frame, Platform, PlatformEvent, WinitMainLoop, SharedCore};
+use crate::{AppInfo, Core, Frame, Platform, PlatformEvent, SharedCore, WinitMainLoop};
 use anyhow::{Context, Result};
 use erupt::{
     cstr,
-    extensions::{khr_surface::SurfaceKHR, khr_swapchain::{self, SwapchainKHR}},
+    extensions::{
+        khr_surface::{self, PresentModeKHR, SurfaceKHR},
+        khr_swapchain::{self, SwapchainKHR},
+    },
     utils::surface,
-    vk1_0 as vk, DeviceLoader, EntryLoader, InstanceLoader,
+    vk, DeviceLoader, EntryLoader, InstanceLoader,
 };
 use gpu_alloc::GpuAllocator;
 use std::ffi::CString;
 use std::sync::Mutex;
 use winit::{
-    event::{Event},
+    event::Event,
     event_loop::EventLoop,
     window::{Window, WindowBuilder},
 };
@@ -23,8 +26,8 @@ pub fn launch<M: WinitMainLoop + 'static>(info: AppInfo) -> Result<()> {
         .build(&event_loop)
         .context("Failed to create window")?;
 
-    let core = build_core(info, &window)?;
-    begin_loop::<M>(core, event_loop, window)
+    let (core, surface, present_mode) = build_core(info, &window)?;
+    begin_loop::<M>(core, event_loop, window, surface, present_mode)
 }
 
 // TODO: Swap this out for better behaviour! (At least gracefully exit sorta)
@@ -38,10 +41,12 @@ fn res<T>(r: Result<T>) -> T {
     }
 }
 
-pub fn begin_loop<M: WinitMainLoop + 'static>(
+fn begin_loop<M: WinitMainLoop + 'static>(
     core: Core,
     event_loop: EventLoop<()>,
     window: Window,
+    surface: SurfaceKHR,
+    present_mode: PresentModeKHR,
 ) -> Result<()> {
     let core = SharedCore::new(core);
 
@@ -53,14 +58,17 @@ pub fn begin_loop<M: WinitMainLoop + 'static>(
         },
     )?;
 
-    let mut swapchain = res(Swapchain::new(core.clone()));
+    let mut swapchain = res(Swapchain::new(core.clone(), surface, present_mode));
 
     event_loop.run(move |event, _, control_flow| {
-        let platform = Platform::Winit {
-            window: &window,
-            flow: control_flow,
-        };
-        res(app.event(PlatformEvent::Winit(&event), &core, platform));
+        res(app.event(
+            PlatformEvent::Winit(&event),
+            &core,
+            Platform::Winit {
+                window: &window,
+                flow: control_flow,
+            },
+        ));
 
         match event {
             Event::MainEventsCleared => {
@@ -71,9 +79,16 @@ pub fn begin_loop<M: WinitMainLoop + 'static>(
                 let (swapchain_index, resize) = res(swapchain.frame(image_available));
                 let frame = Frame { swapchain_index };
                 if let Some((images, extent)) = resize {
-                    app.swapchain_resize(images, extent);
+                    res(app.swapchain_resize(images, extent));
                 }
-                res(app.frame(frame, &core, platform));
+                res(app.frame(
+                    frame,
+                    &core,
+                    Platform::Winit {
+                        window: &window,
+                        flow: control_flow,
+                    },
+                ));
                 // Submit frame to swapchain
             }
             _ => (),
@@ -81,7 +96,7 @@ pub fn begin_loop<M: WinitMainLoop + 'static>(
     });
 }
 
-pub fn build_core(info: AppInfo, window: &Window) -> Result<(Core, SurfaceKHR)> {
+pub fn build_core(info: AppInfo, window: &Window) -> Result<(Core, SurfaceKHR, PresentModeKHR)> {
     // Entry
     let entry = EntryLoader::new()?;
 
@@ -141,7 +156,7 @@ pub fn build_core(info: AppInfo, window: &Window) -> Result<(Core, SurfaceKHR)> 
     let device_props =
         unsafe { gpu_alloc_erupt::device_properties(&instance, hardware.physical_device)? };
     let allocator = Mutex::new(GpuAllocator::new(
-        gpu_alloc::Config::i_am_prototyping(),
+        gpu_alloc::Config::i_am_prototyping(), // TODO: SET THIS TO SOMETHING MORE SANE!! Maybe embed in AppInfo?!
         device_props,
     ));
 
@@ -155,35 +170,42 @@ pub fn build_core(info: AppInfo, window: &Window) -> Result<(Core, SurfaceKHR)> 
         entry,
     };
 
-    Ok((core, surface))
+    Ok((core, surface, hardware.present_mode))
 }
 
 struct Swapchain {
     inner: SwapchainKHR,
     surface: SurfaceKHR,
     core: SharedCore,
+    present_mode: PresentModeKHR,
 }
 
 impl Swapchain {
-    pub fn new(core: SharedCore, surface: SurfaceKHR) -> Result<Self> {
+    pub fn new(
+        core: SharedCore,
+        surface: SurfaceKHR,
+        present_mode: PresentModeKHR,
+    ) -> Result<Self> {
         Ok(Self {
-            inner: Self::create_swapchain(&core, surface)?,
+            inner: Self::create_swapchain(&core, surface, present_mode)?.0,
             surface,
             core,
+            present_mode,
         })
     }
 
     pub fn frame(
         &mut self,
         image_available: vk::Semaphore,
-    ) -> Result<(usize, Option<(Vec<vk::Image>, vk::Extent2D)>)> {
+    ) -> Result<(u32, Option<(Vec<vk::Image>, vk::Extent2D)>)> {
         let ret = self.acquire_image(image_available);
 
         // Early return and invalidate swapchain
         if ret.raw == vk::Result::ERROR_OUT_OF_DATE_KHR {
-            self.free_swapchain()?;
+            self.free_swapchain();
 
-            let (swapchain, images, extent) = Self::create_swapchain(&self.core, self.surface)?;
+            let (swapchain, images, extent) =
+                Self::create_swapchain(&self.core, self.surface, self.present_mode)?;
 
             self.inner = swapchain;
 
@@ -193,7 +215,7 @@ impl Swapchain {
             Ok((img_idx, Some(resize)))
         } else {
             Ok((ret.result()?, None))
-        };
+        }
     }
 
     fn acquire_image(&mut self, image_available: vk::Semaphore) -> erupt::utils::VulkanResult<u32> {
@@ -208,15 +230,66 @@ impl Swapchain {
         }
     }
 
-    fn free_swapchain(&mut self) -> Result<()> {
+    fn free_swapchain(&mut self) {
+        unsafe {
+            self.core
+                .device
+                .destroy_swapchain_khr(Some(self.inner), None);
+        }
     }
 
-    fn create_swapchain(&core, surface: SurfaceKHR) -> Result<(SwapchainKHR, Vec<vk::Image>, vk::Extent2D)> {
+    fn create_swapchain(
+        core: &Core,
+        surface: SurfaceKHR,
+        present_mode: PresentModeKHR,
+    ) -> Result<(SwapchainKHR, Vec<vk::Image>, vk::Extent2D)> {
+        let surface_caps = unsafe {
+            core.instance.get_physical_device_surface_capabilities_khr(
+                core.physical_device,
+                surface,
+                None,
+            )
+        }
+        .result()?;
+
+        let mut image_count = surface_caps.min_image_count + 1;
+        if surface_caps.max_image_count > 0 && image_count > surface_caps.max_image_count {
+            image_count = surface_caps.max_image_count;
+        }
+
+        // Build the actual swapchain
+        let create_info = khr_swapchain::SwapchainCreateInfoKHRBuilder::new()
+            .surface(surface)
+            .min_image_count(image_count)
+            .image_format(crate::COLOR_FORMAT)
+            .image_color_space(crate::COLOR_SPACE)
+            .image_extent(surface_caps.current_extent)
+            .image_array_layers(1)
+            .image_usage(vk::ImageUsageFlags::COLOR_ATTACHMENT)
+            .image_sharing_mode(vk::SharingMode::EXCLUSIVE)
+            .pre_transform(surface_caps.current_transform)
+            .composite_alpha(khr_surface::CompositeAlphaFlagBitsKHR::OPAQUE_KHR)
+            .present_mode(present_mode)
+            .clipped(true)
+            .old_swapchain(khr_swapchain::SwapchainKHR::null());
+
+        let swapchain =
+            unsafe { core.device.create_swapchain_khr(&create_info, None, None) }.result()?;
+
+        let swapchain_images =
+            unsafe { core.device.get_swapchain_images_khr(swapchain, None) }.result()?;
+
+        Ok((swapchain, swapchain_images, surface_caps.current_extent))
     }
 }
 
 impl Drop for Swapchain {
     fn drop(&mut self) {
-        self.free_swapchain().expect("Failed to free swapchain");
+        self.free_swapchain();
+        unsafe {
+            self.core
+                .instance
+                .destroy_surface_khr(Some(self.surface), None);
+        }
     }
 }

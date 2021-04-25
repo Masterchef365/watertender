@@ -49,8 +49,7 @@ impl HardwareSelection {
                     .iter()
                     .find(|surface_format| {
                         surface_format.format == crate::COLOR_FORMAT
-                            && surface_format.color_space
-                                == khr_surface::ColorSpaceKHR::SRGB_NONLINEAR_KHR
+                            && surface_format.color_space == crate::COLOR_SPACE
                     })
                     .or_else(|| formats.get(0))
                 {
