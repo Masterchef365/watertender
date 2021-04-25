@@ -1,5 +1,5 @@
 use crate::hardware_query::HardwareSelection;
-use crate::{AppInfo, Core, Platform, PlatformEvent, WinitMainLoop};
+use crate::{AppInfo, Core, Platform, PlatformEvent, WinitMainLoop, Frame};
 use anyhow::{Context, Result};
 use erupt::{
     cstr,
@@ -27,10 +27,14 @@ pub fn launch<M: WinitMainLoop + 'static>(info: AppInfo) -> Result<()> {
     begin_loop::<M>(core, event_loop, window)
 }
 
-fn res(r: Result<()>) {
-    if let Err(e) = r {
-        eprintln!("Error: {}", e);
-        std::process::exit(-1);
+// TODO: Swap this out for better behaviour! (At least gracefully exit sorta)
+fn res<T>(r: Result<T>) -> T {
+    match r {
+        Err(e) => {
+            eprintln!("Error: {}", e);
+            std::process::exit(-1)
+        },
+        Ok(v) => v,
     }
 }
 
@@ -47,22 +51,28 @@ pub fn begin_loop<M: WinitMainLoop + 'static>(
         },
     )?;
 
+    let mut swapchain = res(Swapchain::new(&core));
+
     event_loop.run(move |event, _, control_flow| {
-        res(app.event(
-            PlatformEvent::Winit(&event),
-            &core,
-            Platform::Winit {
-                window: &window,
-                flow: control_flow,
-            },
-        ));
+        let platform = Platform::Winit {
+            window: &window,
+            flow: control_flow,
+        };
+        res(app.event(PlatformEvent::Winit(&event), &core, platform));
 
         match event {
             Event::MainEventsCleared => {
                 window.request_redraw();
             }
             Event::RedrawRequested(_) => {
-                //app.frame
+                let (image_available, render_finished) = app.winit_sync();
+                let (swapchain_index, resize) = res(swapchain.frame(image_available));
+                let frame = Frame { swapchain_index };
+                if let Some((images, extent)) = resize {
+                    app.swapchain_resize(images, extent);
+                }
+                res(app.frame(frame, &core, platform));
+                // Submit frame to swapchain
             }
             _ => (),
         }

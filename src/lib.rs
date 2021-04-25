@@ -18,6 +18,7 @@ pub use winit;
 
 mod alloc_helpers;
 mod hardware_query;
+pub mod shortcuts;
 
 /// All mainloops run on executors must implement this trait
 pub trait MainLoop: Sized {
@@ -98,6 +99,15 @@ pub enum Platform<'a> {
     },
     #[cfg(feature = "openxr")]
     OpenXr { xr_core: &'a openxr_backend::XrCore },
+}
+
+impl Platform<'_> {
+    pub fn is_vr(&self) -> bool {
+        match self {
+            Platform::Winit { .. } => false,
+            Platform::OpenXr { .. } => true,
+        }
+    }
 }
 
 pub const ENGINE_NAME: &str = "WaterTender";
