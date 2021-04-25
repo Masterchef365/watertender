@@ -150,7 +150,7 @@ impl FramebufferManager {
         Ok(())
     }
 
-    pub fn dimensions(&self) -> vk::Extent2D {
+    pub fn extent(&self) -> vk::Extent2D {
         self.internals
             .as_ref()
             .expect("Dimensions called before resize")

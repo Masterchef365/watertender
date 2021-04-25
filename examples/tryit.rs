@@ -1,8 +1,7 @@
 #![allow(unused)]
 use anyhow::Result;
 use shortcuts::{
-    create_render_pass, FramebufferManager, MemObject, Synchronization, UsageFlags, Vertex,
-    shader,
+    create_render_pass, shader, FramebufferManager, MemObject, Synchronization, UsageFlags, Vertex,
 };
 use watertender::*;
 
@@ -15,7 +14,7 @@ struct App {
     vertex_buffer: MemObject<vk::Buffer>,
     frame: usize,
     pipeline: vk::Pipeline,
-    command_buffer: vk::CommandBuffer,
+    command_buffers: Vec<vk::CommandBuffer>,
     //descriptor_sets: Vec<vk::DescriptorSet>,
 }
 
@@ -72,8 +71,7 @@ impl MainLoop for App {
             vk::DescriptorSetLayoutCreateInfoBuilder::new().bindings(&bindings);
 
         let descriptor_set_layout = unsafe {
-            core
-                .device
+            core.device
                 .create_descriptor_set_layout(&descriptor_set_layout_ci, None, None)
         }
         .result()?;
@@ -115,16 +113,12 @@ impl MainLoop for App {
             .push_constant_ranges(&push_constant_ranges)
             .set_layouts(&descriptor_set_layouts);
 
-        let pipeline_layout = unsafe {
-            core
-                .device
-                .create_pipeline_layout(&create_info, None, None)
-        }
-        .result()?;
+        let pipeline_layout =
+            unsafe { core.device.create_pipeline_layout(&create_info, None, None) }.result()?;
 
         // Pipeline
         let pipeline = shader(
-            core, 
+            core,
             include_bytes!("unlit.vert.spv"),
             include_bytes!("unlit.frag.spv"),
             vk::PrimitiveTopology::TRIANGLE_LIST,
@@ -145,12 +139,12 @@ impl MainLoop for App {
             .level(vk::CommandBufferLevel::PRIMARY)
             .command_buffer_count(FRAMES_IN_FLIGHT as u32);
 
-        let command_buffer =
-            unsafe { core.device.allocate_command_buffers(&allocate_info) }.result()?[0];
+        let command_buffers =
+            unsafe { core.device.allocate_command_buffers(&allocate_info) }.result()?;
 
         Ok(App {
             sync,
-            command_buffer,
+            command_buffers,
             pipeline,
             framebuffer,
             render_pass,
@@ -160,6 +154,87 @@ impl MainLoop for App {
     }
 
     fn frame(&mut self, frame: Frame, core: &SharedCore, platform: Platform<'_>) -> Result<()> {
+        let command_buffer = self.command_buffers[self.frame];
+        let framebuffer = self.framebuffer.frame(frame.swapchain_index);
+
+        unsafe {
+            core.device
+                .reset_command_buffer(command_buffer, None)
+                .result()?;
+
+            let begin_info = vk::CommandBufferBeginInfoBuilder::new();
+            core.device
+                .begin_command_buffer(command_buffer, &begin_info)
+                .result()?;
+
+            // Set render pass
+            let clear_values = [
+                vk::ClearValue {
+                    color: vk::ClearColorValue {
+                        float32: [0.0, 0.0, 0.0, 1.0],
+                    },
+                },
+                vk::ClearValue {
+                    depth_stencil: vk::ClearDepthStencilValue {
+                        depth: 1.0,
+                        stencil: 0,
+                    },
+                },
+            ];
+
+            let begin_info = vk::RenderPassBeginInfoBuilder::new()
+                .framebuffer(framebuffer)
+                .render_pass(self.render_pass)
+                .render_area(vk::Rect2D {
+                    offset: vk::Offset2D { x: 0, y: 0 },
+                    extent: self.framebuffer.extent(),
+                })
+                .clear_values(&clear_values);
+
+            core.device.cmd_begin_render_pass(
+                command_buffer,
+                &begin_info,
+                vk::SubpassContents::INLINE,
+            );
+
+            let viewports = [vk::ViewportBuilder::new()
+                .x(0.0)
+                .y(0.0)
+                .width(self.framebuffer.extent().width as f32)
+                .height(self.framebuffer.extent().height as f32)
+                .min_depth(0.0)
+                .max_depth(1.0)];
+
+            let scissors = [vk::Rect2DBuilder::new()
+                .offset(vk::Offset2D { x: 0, y: 0 })
+                .extent(self.framebuffer.extent())];
+
+            core.device.cmd_end_render_pass(command_buffer);
+
+            core.device.end_command_buffer(command_buffer).result()?;
+        }
+
+        let fence = self.sync.sync(frame.swapchain_index, self.frame)?;
+        let command_buffers = [command_buffer];
+        let (wait_semaphores, signal_semaphores) = if let Some((image_available, render_finished)) =
+            self.sync.swapchain_sync(self.frame)
+        {
+            (vec![image_available], vec![render_finished])
+        } else {
+            (vec![], vec![])
+        };
+
+        let submit_info = vk::SubmitInfoBuilder::new()
+            .wait_semaphores(&wait_semaphores)
+            .wait_dst_stage_mask(&[vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT])
+            .command_buffers(&command_buffers)
+            .signal_semaphores(&signal_semaphores);
+        unsafe {
+            core.device
+                .queue_submit(core.queue, &[submit_info], Some(fence))
+                .result()?;
+        }
+
         self.frame = (self.frame + 1) % FRAMES_IN_FLIGHT;
         Ok(())
     }
@@ -174,8 +249,14 @@ impl MainLoop for App {
         core: &Core,
         platform: Platform<'_>,
     ) -> Result<()> {
-        if let PlatformEvent::Winit(ev) = event {
-            dbg!(ev);
+        if let PlatformEvent::Winit(winit::event::Event::WindowEvent { event, .. }) = event {
+            if let winit::event::WindowEvent::CloseRequested = event {
+                if let Platform::Winit {
+                    flow, ..
+                } = platform {
+                    *flow = winit::event_loop::ControlFlow::Exit;
+                }
+            }
         }
         Ok(())
     }
