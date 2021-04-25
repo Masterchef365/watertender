@@ -155,6 +155,8 @@ impl MainLoop for App {
     }
 
     fn frame(&mut self, frame: Frame, core: &SharedCore, platform: Platform<'_>) -> Result<()> {
+        let fence = self.sync.sync(frame.swapchain_index, self.frame)?;
+
         let command_buffer = self.command_buffers[self.frame];
         let framebuffer = self.framebuffer.frame(frame.swapchain_index);
 
@@ -210,6 +212,10 @@ impl MainLoop for App {
                 .offset(vk::Offset2D { x: 0, y: 0 })
                 .extent(self.framebuffer.extent())];
 
+            core.device.cmd_set_viewport(command_buffer, 0, &viewports);
+
+            core.device.cmd_set_scissor(command_buffer, 0, &scissors);
+
             // Draw cmds
             core.device.cmd_bind_vertex_buffers(
                 command_buffer,
@@ -231,7 +237,6 @@ impl MainLoop for App {
             core.device.end_command_buffer(command_buffer).result()?;
         }
 
-        let fence = self.sync.sync(frame.swapchain_index, self.frame)?;
         let command_buffers = [command_buffer];
         let (wait_semaphores, signal_semaphores) = if let Some((image_available, render_finished)) =
             self.sync.swapchain_sync(self.frame)
@@ -257,6 +262,7 @@ impl MainLoop for App {
     }
 
     fn swapchain_resize(&mut self, images: Vec<vk::Image>, extent: vk::Extent2D) -> Result<()> {
+        println!("################################################## RESIZE");
         self.framebuffer.resize(images, extent, self.render_pass)
     }
 
