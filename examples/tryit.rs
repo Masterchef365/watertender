@@ -14,6 +14,9 @@ struct App {
     render_pass: vk::RenderPass,
     vertex_buffer: MemObject<vk::Buffer>,
     frame: usize,
+    pipeline: vk::Pipeline,
+    command_buffer: vk::CommandBuffer,
+    //descriptor_sets: Vec<vk::DescriptorSet>,
 }
 
 fn main() -> Result<()> {
@@ -51,8 +54,56 @@ impl MainLoop for App {
         let mut vertex_buffer = MemObject::new_buffer(core, create_info, UsageFlags::UPLOAD)?;
         vertex_buffer.write_bytes(core, 0, bytemuck::cast_slice(&vertices))?;
 
-        // Descriptor sets
+        // Create descriptor layout
+        let bindings = [
+            vk::DescriptorSetLayoutBindingBuilder::new()
+                .binding(0)
+                .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
+                .descriptor_count(1)
+                .stage_flags(vk::ShaderStageFlags::VERTEX),
+            vk::DescriptorSetLayoutBindingBuilder::new()
+                .binding(1)
+                .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
+                .descriptor_count(1)
+                .stage_flags(vk::ShaderStageFlags::VERTEX | vk::ShaderStageFlags::FRAGMENT),
+        ];
+
+        let descriptor_set_layout_ci =
+            vk::DescriptorSetLayoutCreateInfoBuilder::new().bindings(&bindings);
+
+        let descriptor_set_layout = unsafe {
+            core
+                .device
+                .create_descriptor_set_layout(&descriptor_set_layout_ci, None, None)
+        }
+        .result()?;
+
         let descriptor_set_layouts = [descriptor_set_layout];
+
+        // Create descriptor pool
+        /*
+        let pool_sizes = [vk::DescriptorPoolSizeBuilder::new()
+            ._type(vk::DescriptorType::UNIFORM_BUFFER)
+            .descriptor_count((FRAMES_IN_FLIGHT * 2) as u32)];
+        let create_info = vk::DescriptorPoolCreateInfoBuilder::new()
+            .pool_sizes(&pool_sizes)
+            .max_sets(FRAMES_IN_FLIGHT as u32);
+        let descriptor_pool = unsafe {
+            core
+                .device
+                .create_descriptor_pool(&create_info, None, None)
+        }
+        .result()?;
+
+        // Create descriptor sets
+        let layouts = vec![descriptor_set_layout; FRAMES_IN_FLIGHT];
+        let create_info = vk::DescriptorSetAllocateInfoBuilder::new()
+            .descriptor_pool(descriptor_pool)
+            .set_layouts(&layouts);
+
+        let descriptor_sets =
+            unsafe { core.device.allocate_descriptor_sets(&create_info) }.result()?;
+        */
 
         // Pipeline layout
         let push_constant_ranges = [vk::PushConstantRangeBuilder::new()
@@ -65,7 +116,7 @@ impl MainLoop for App {
             .set_layouts(&descriptor_set_layouts);
 
         let pipeline_layout = unsafe {
-            prelude
+            core
                 .device
                 .create_pipeline_layout(&create_info, None, None)
         }
@@ -74,15 +125,33 @@ impl MainLoop for App {
         // Pipeline
         let pipeline = shader(
             core, 
-            include_bytes!("examples/unlit.vert.spv"),
-            include_bytes!("examples/unlit.frag.spv"),
+            include_bytes!("unlit.vert.spv"),
+            include_bytes!("unlit.frag.spv"),
             vk::PrimitiveTopology::TRIANGLE_LIST,
             render_pass,
             pipeline_layout,
         )?;
 
+        // Command pool
+        let create_info = vk::CommandPoolCreateInfoBuilder::new()
+            .flags(vk::CommandPoolCreateFlags::RESET_COMMAND_BUFFER)
+            .queue_family_index(core.queue_family);
+        let command_pool =
+            unsafe { core.device.create_command_pool(&create_info, None, None) }.result()?;
+
+        // Allocate command buffers
+        let allocate_info = vk::CommandBufferAllocateInfoBuilder::new()
+            .command_pool(command_pool)
+            .level(vk::CommandBufferLevel::PRIMARY)
+            .command_buffer_count(FRAMES_IN_FLIGHT as u32);
+
+        let command_buffer =
+            unsafe { core.device.allocate_command_buffers(&allocate_info) }.result()?[0];
+
         Ok(App {
             sync,
+            command_buffer,
+            pipeline,
             framebuffer,
             render_pass,
             vertex_buffer,
@@ -122,6 +191,7 @@ impl WinitMainLoop for App {
 
 impl Drop for App {
     fn drop(&mut self) {
-        self.vertex_buffer.free(&self.core);
+        // TODO: Make those objects auto-free...
+        //self.vertex_buffer.free(&self.core);
     }
 }
