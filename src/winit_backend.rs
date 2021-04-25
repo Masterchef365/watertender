@@ -90,7 +90,7 @@ fn begin_loop<M: WinitMainLoop + 'static>(
                         flow: control_flow,
                     },
                 ));
-                // Submit frame to swapchain
+                res(swapchain.queue_present(swapchain_index, render_finished));
             }
             _ => (),
         }
@@ -283,6 +283,34 @@ impl Swapchain {
             unsafe { core.device.get_swapchain_images_khr(swapchain, None) }.result()?;
 
         Ok((swapchain, (swapchain_images, surface_caps.current_extent)))
+    }
+
+    fn queue_present(&mut self, image_index: u32, render_finished: vk::Semaphore) -> Result<Option<SwapchainImages>> {
+        // Present to swapchain
+        let swapchains = [self.inner];
+        let image_indices = [image_index];
+        let wait_semaphores = [render_finished];
+        let present_info = khr_swapchain::PresentInfoKHRBuilder::new()
+            .wait_semaphores(&wait_semaphores)
+            .swapchains(&swapchains)
+            .image_indices(&image_indices);
+
+        // TODO: Handle queue result?
+        let queue_result = unsafe {
+            self.core
+                .device
+                .queue_present_khr(self.core.queue, &present_info)
+        };
+
+        if queue_result.raw == vk::Result::ERROR_OUT_OF_DATE_KHR {
+            self.free_swapchain();
+            let (swapchain, resize) = Self::create_swapchain(&self.core, self.surface, self.present_mode)?;
+            self.inner = swapchain;
+            Ok(Some(resize))
+        } else {
+            queue_result.result()?;
+            Ok(None)
+        }
     }
 }
 
