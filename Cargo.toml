@@ -15,5 +15,6 @@ openxr = { version = "0.14", optional = true }
 drop_bomb = "0.1"
 gpu-alloc-erupt = { git = "https://github.com/Friz64/gpu-alloc.git", branch = "erupt-update-18" }
 gpu-alloc = { git = "https://github.com/Friz64/gpu-alloc.git", branch = "erupt-update-18" }
+bytemuck = "1.5"
 #gpu-alloc-erupt = "0.3"
 #gpu-alloc = "0.3"

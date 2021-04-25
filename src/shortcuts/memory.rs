@@ -2,7 +2,7 @@ use crate::Core;
 use anyhow::Result;
 use drop_bomb::DropBomb;
 use erupt::vk1_0 as vk;
-use gpu_alloc::{Request, UsageFlags};
+pub use gpu_alloc::{Request, UsageFlags};
 use gpu_alloc_erupt::EruptMemoryDevice as EMD;
 
 /// Block of allocated device memory
@@ -37,6 +37,18 @@ impl<T> MemObject<T> {
         self.memory.as_mut().expect("Use after free")
     }
 
+    pub fn write_bytes(&mut self, core: &Core, offset: u64, data: &[u8]) -> Result<()> {
+        Ok(unsafe {
+            self.memory_mut().write_bytes(EMD::wrap(&core.device), offset, data)?;
+        })
+    }
+
+    pub fn read_bytes(&mut self, core: &Core, offset: u64, data: &mut [u8]) -> Result<()> {
+        Ok(unsafe {
+            self.memory_mut().read_bytes(EMD::wrap(&core.device), offset, data)?;
+        })
+    }
+
     pub fn instance(&self) -> T where T: Copy {
         self.instance
     }
@@ -45,7 +57,7 @@ impl<T> MemObject<T> {
 impl MemObject<vk::Image> {
     /// Allocate a new image with the given usage. Note that for the view builder, `image` does not
     /// need to be specified as this method will handle adding it.
-    pub fn new(
+    pub fn new_image(
         core: &Core,
         create_info: vk::ImageCreateInfoBuilder<'static>,
         usage: gpu_alloc::UsageFlags,
@@ -77,7 +89,7 @@ impl MemObject<vk::Image> {
 impl MemObject<vk::Buffer> {
     /// Allocate a new buffer with the given usage. Note that for the view builder, `buffer` does not
     /// need to be specified as this method will handle adding it.
-    pub fn new(
+    pub fn new_buffer(
         core: &Core,
         create_info: vk::BufferCreateInfoBuilder<'static>,
         usage: gpu_alloc::UsageFlags,

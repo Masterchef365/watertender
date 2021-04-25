@@ -1,6 +1,8 @@
 #![allow(unused)]
 use anyhow::Result;
-use shortcuts::{Synchronization, FramebufferManager, create_render_pass};
+use shortcuts::{
+    create_render_pass, FramebufferManager, MemObject, Synchronization, UsageFlags, Vertex,
+};
 use watertender::*;
 
 const FRAMES_IN_FLIGHT: usize = 2;
@@ -9,6 +11,7 @@ struct App {
     framebuffer: FramebufferManager,
     sync: Synchronization,
     render_pass: vk::RenderPass,
+    vertex_buffer: MemObject<vk::Buffer>,
     frame: usize,
 }
 
@@ -20,35 +23,49 @@ fn main() -> Result<()> {
     }
 }
 
-/// All mainloops run on executors must implement this trait
 impl MainLoop for App {
-    /// Creates a new instance of your app. Mainly useful for setting up data structures and
-    /// allocating memory.
     fn new(core: &SharedCore, platform: Platform<'_>) -> Result<Self> {
         let sync = Synchronization::new(
             core.clone(),
             FRAMES_IN_FLIGHT,
             matches!(platform, Platform::Winit { .. }),
         )?;
-        
+
         let framebuffer = FramebufferManager::new(core.clone(), platform.is_vr());
         let render_pass = create_render_pass(&core, platform.is_vr())?;
 
-        Ok(App { sync, framebuffer, render_pass, frame: 0 })
+        let vertices = vec![
+            Vertex::new([-0.5, 0.5, 0.], [1., 0., 0.]),
+            Vertex::new([0.5, 0.5, 0.], [0., 1., 0.]),
+            Vertex::new([0.0, -1.0, 0.], [0., 0., 1.]),
+        ];
+
+        let create_info = vk::BufferCreateInfoBuilder::new()
+            .usage(vk::BufferUsageFlags::VERTEX_BUFFER)
+            .sharing_mode(vk::SharingMode::EXCLUSIVE)
+            .size(std::mem::size_of_val(vertices.as_slice()) as u64);
+
+        let mut vertex_buffer = MemObject::new_buffer(core, create_info, UsageFlags::UPLOAD)?;
+        vertex_buffer.write_bytes(core, 0, bytemuck::cast_slice(&vertices))?;
+
+        Ok(App {
+            sync,
+            framebuffer,
+            render_pass,
+            vertex_buffer,
+            frame: 0,
+        })
     }
 
-    /// A frame handled by your app. The command buffers in `frame` are already reset and have begun, and will be ended and submitted.
     fn frame(&mut self, frame: Frame, core: &SharedCore, platform: Platform<'_>) -> Result<()> {
         self.frame = (self.frame + 1) % FRAMES_IN_FLIGHT;
         Ok(())
     }
 
-    /// Renderpass used to output to the framebuffer provided in Frame
     fn swapchain_resize(&mut self, images: Vec<vk::Image>, extent: vk::Extent2D) -> Result<()> {
         self.framebuffer.resize(images, extent, self.render_pass)
     }
 
-    /// Handle an event produced by the Platform
     fn event(
         &mut self,
         event: PlatformEvent<'_, '_>,

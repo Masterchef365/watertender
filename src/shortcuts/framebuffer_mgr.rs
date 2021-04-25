@@ -73,7 +73,7 @@ impl FramebufferManager {
             .sharing_mode(vk::SharingMode::EXCLUSIVE);
 
         let depth_image =
-            MemObject::<vk::Image>::new(&self.core, create_info, UsageFlags::FAST_DEVICE_ACCESS)?;
+            MemObject::new_image(&self.core, create_info, UsageFlags::FAST_DEVICE_ACCESS)?;
 
         let create_info = vk::ImageViewCreateInfoBuilder::new()
             .image(depth_image.instance())

@@ -5,4 +5,6 @@ pub use framebuffer_mgr::FramebufferManager;
 mod render_pass;
 pub use render_pass::create_render_pass;
 mod memory;
-pub use memory::{MemObject, MemoryBlock, buffer_memory_req, image_memory_req};
+pub use memory::{MemObject, MemoryBlock, buffer_memory_req, image_memory_req, UsageFlags};
+mod vertex;
+pub use vertex::Vertex;
