@@ -23,7 +23,7 @@ impl Core {
 
 /// Simple allocated vk::Image or vk::Buffer
 pub struct MemObject<T> {
-    pub instance: T,
+    instance: T,
     memory: Option<MemoryBlock>,
     bomb: DropBomb,
 }
@@ -35,6 +35,10 @@ impl<T> MemObject<T> {
 
     pub fn memory_mut(&mut self) -> &mut MemoryBlock {
         self.memory.as_mut().expect("Use after free")
+    }
+
+    pub fn instance(&self) -> T where T: Copy {
+        self.instance
     }
 }
 
