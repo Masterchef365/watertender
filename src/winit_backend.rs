@@ -58,7 +58,8 @@ fn begin_loop<M: WinitMainLoop + 'static>(
         },
     )?;
 
-    let mut swapchain = res(Swapchain::new(core.clone(), surface, present_mode));
+    let (mut swapchain, (images, extent)) = res(Swapchain::new(core.clone(), surface, present_mode));
+    res(app.swapchain_resize(images, extent));
 
     event_loop.run(move |event, _, control_flow| {
         res(app.event(
@@ -180,36 +181,38 @@ struct Swapchain {
     present_mode: PresentModeKHR,
 }
 
+type SwapchainImages = (Vec<vk::Image>, vk::Extent2D);
+
 impl Swapchain {
     pub fn new(
         core: SharedCore,
         surface: SurfaceKHR,
         present_mode: PresentModeKHR,
-    ) -> Result<Self> {
-        Ok(Self {
-            inner: Self::create_swapchain(&core, surface, present_mode)?.0,
+    ) -> Result<(Self, SwapchainImages)> {
+        let (inner, images) = Self::create_swapchain(&core, surface, present_mode)?;
+        let instance = Self {
+            inner,
             surface,
             core,
             present_mode,
-        })
+        };
+        Ok((instance, images))
     }
 
     pub fn frame(
         &mut self,
         image_available: vk::Semaphore,
-    ) -> Result<(u32, Option<(Vec<vk::Image>, vk::Extent2D)>)> {
+    ) -> Result<(u32, Option<SwapchainImages>)> {
         let ret = self.acquire_image(image_available);
 
         // Early return and invalidate swapchain
         if ret.raw == vk::Result::ERROR_OUT_OF_DATE_KHR {
             self.free_swapchain();
 
-            let (swapchain, images, extent) =
-                Self::create_swapchain(&self.core, self.surface, self.present_mode)?;
+            let (swapchain, resize) = Self::create_swapchain(&self.core, self.surface, self.present_mode)?;
 
             self.inner = swapchain;
 
-            let resize = (images, extent);
             let img_idx = self.acquire_image(image_available).result()?; // Fail if we already tried once
 
             Ok((img_idx, Some(resize)))
@@ -242,7 +245,7 @@ impl Swapchain {
         core: &Core,
         surface: SurfaceKHR,
         present_mode: PresentModeKHR,
-    ) -> Result<(SwapchainKHR, Vec<vk::Image>, vk::Extent2D)> {
+    ) -> Result<(SwapchainKHR, SwapchainImages)> {
         let surface_caps = unsafe {
             core.instance.get_physical_device_surface_capabilities_khr(
                 core.physical_device,
@@ -279,7 +282,7 @@ impl Swapchain {
         let swapchain_images =
             unsafe { core.device.get_swapchain_images_khr(swapchain, None) }.result()?;
 
-        Ok((swapchain, swapchain_images, surface_caps.current_extent))
+        Ok((swapchain, (swapchain_images, surface_caps.current_extent)))
     }
 }
 
