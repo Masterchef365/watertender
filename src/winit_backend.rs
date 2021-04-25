@@ -1,9 +1,9 @@
 use crate::hardware_query::HardwareSelection;
-use crate::{AppInfo, Core, Platform, PlatformEvent, WinitMainLoop, Frame};
+use crate::{AppInfo, Core, Frame, Platform, PlatformEvent, WinitMainLoop, SharedCore};
 use anyhow::{Context, Result};
 use erupt::{
     cstr,
-    extensions::{khr_surface, khr_swapchain},
+    extensions::{khr_surface::SurfaceKHR, khr_swapchain::{self, SwapchainKHR}},
     utils::surface,
     vk1_0 as vk, DeviceLoader, EntryLoader, InstanceLoader,
 };
@@ -11,8 +11,8 @@ use gpu_alloc::GpuAllocator;
 use std::ffi::CString;
 use std::sync::Mutex;
 use winit::{
-    event::{Event, WindowEvent},
-    event_loop::{ControlFlow, EventLoop},
+    event::{Event},
+    event_loop::EventLoop,
     window::{Window, WindowBuilder},
 };
 
@@ -33,7 +33,7 @@ fn res<T>(r: Result<T>) -> T {
         Err(e) => {
             eprintln!("Error: {}", e);
             std::process::exit(-1)
-        },
+        }
         Ok(v) => v,
     }
 }
@@ -43,6 +43,8 @@ pub fn begin_loop<M: WinitMainLoop + 'static>(
     event_loop: EventLoop<()>,
     window: Window,
 ) -> Result<()> {
+    let core = SharedCore::new(core);
+
     let mut app = M::new(
         &core,
         Platform::Winit {
@@ -51,7 +53,7 @@ pub fn begin_loop<M: WinitMainLoop + 'static>(
         },
     )?;
 
-    let mut swapchain = res(Swapchain::new(&core));
+    let mut swapchain = res(Swapchain::new(core.clone()));
 
     event_loop.run(move |event, _, control_flow| {
         let platform = Platform::Winit {
@@ -79,7 +81,7 @@ pub fn begin_loop<M: WinitMainLoop + 'static>(
     });
 }
 
-pub fn build_core(info: AppInfo, window: &Window) -> Result<Core> {
+pub fn build_core(info: AppInfo, window: &Window) -> Result<(Core, SurfaceKHR)> {
     // Entry
     let entry = EntryLoader::new()?;
 
@@ -143,7 +145,7 @@ pub fn build_core(info: AppInfo, window: &Window) -> Result<Core> {
         device_props,
     ));
 
-    Ok(Core {
+    let core = Core {
         physical_device: hardware.physical_device,
         queue_family: hardware.queue_family,
         queue,
@@ -151,5 +153,70 @@ pub fn build_core(info: AppInfo, window: &Window) -> Result<Core> {
         instance,
         allocator,
         entry,
-    })
+    };
+
+    Ok((core, surface))
+}
+
+struct Swapchain {
+    inner: SwapchainKHR,
+    surface: SurfaceKHR,
+    core: SharedCore,
+}
+
+impl Swapchain {
+    pub fn new(core: SharedCore, surface: SurfaceKHR) -> Result<Self> {
+        Ok(Self {
+            inner: Self::create_swapchain(&core, surface)?,
+            surface,
+            core,
+        })
+    }
+
+    pub fn frame(
+        &mut self,
+        image_available: vk::Semaphore,
+    ) -> Result<(usize, Option<(Vec<vk::Image>, vk::Extent2D)>)> {
+        let ret = self.acquire_image(image_available);
+
+        // Early return and invalidate swapchain
+        if ret.raw == vk::Result::ERROR_OUT_OF_DATE_KHR {
+            self.free_swapchain()?;
+
+            let (swapchain, images, extent) = Self::create_swapchain(&self.core, self.surface)?;
+
+            self.inner = swapchain;
+
+            let resize = (images, extent);
+            let img_idx = self.acquire_image(image_available).result()?; // Fail if we already tried once
+
+            Ok((img_idx, Some(resize)))
+        } else {
+            Ok((ret.result()?, None))
+        };
+    }
+
+    fn acquire_image(&mut self, image_available: vk::Semaphore) -> erupt::utils::VulkanResult<u32> {
+        unsafe {
+            self.core.device.acquire_next_image_khr(
+                self.inner,
+                u64::MAX,
+                Some(image_available),
+                None,
+                None,
+            )
+        }
+    }
+
+    fn free_swapchain(&mut self) -> Result<()> {
+    }
+
+    fn create_swapchain(&core, surface: SurfaceKHR) -> Result<(SwapchainKHR, Vec<vk::Image>, vk::Extent2D)> {
+    }
+}
+
+impl Drop for Swapchain {
+    fn drop(&mut self) {
+        self.free_swapchain().expect("Failed to free swapchain");
+    }
 }
