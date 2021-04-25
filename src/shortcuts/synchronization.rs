@@ -1,13 +1,13 @@
 use crate::SharedCore;
-use erupt::vk;
 use anyhow::Result;
+use erupt::vk;
 use std::collections::HashMap;
 
-/// Basic synchronization utilities
+/// Basic frmame/swapchain synchronization utility
 pub struct Synchronization {
     in_flight_fences: Vec<vk::Fence>,
     swapchain_sync: Vec<(vk::Semaphore, vk::Semaphore)>,
-    swapchain_img_lut: HashMap<u32, vk::Fence>, // Mapping from swapchain image to 
+    swapchain_img_lut: HashMap<u32, vk::Fence>, // Mapping from swapchain image to
     core: SharedCore,
 }
 
@@ -22,15 +22,24 @@ impl Synchronization {
             unsafe {
                 let create_info =
                     vk::FenceCreateInfoBuilder::new().flags(vk::FenceCreateFlags::SIGNALED);
-                let fence = core.device.create_fence(&create_info, None, None).result()?;
+                let fence = core
+                    .device
+                    .create_fence(&create_info, None, None)
+                    .result()?;
                 in_flight_fences.push(fence);
             }
 
             if khr_sync {
                 let create_info = vk::SemaphoreCreateInfoBuilder::new();
                 unsafe {
-                    let image_available = core.device.create_semaphore(&create_info, None, None).result()?;
-                    let render_finished = core.device.create_semaphore(&create_info, None, None).result()?;
+                    let image_available = core
+                        .device
+                        .create_semaphore(&create_info, None, None)
+                        .result()?;
+                    let render_finished = core
+                        .device
+                        .create_semaphore(&create_info, None, None)
+                        .result()?;
                     swapchain_sync.push((image_available, render_finished));
                 }
             }
@@ -51,18 +60,21 @@ impl Synchronization {
         // Ensure this swapchain image is not already in use by the GPU
         if let Some(&fence) = self.swapchain_img_lut.get(&swapchain_image_index) {
             unsafe {
-                self.core.device.wait_for_fences(&[fence], false, u64::MAX).result()?;
+                self.core
+                    .device
+                    .wait_for_fences(&[fence], false, u64::MAX)
+                    .result()?;
             }
         }
 
         // Ensure this frame is not already in use by the GPU
         let fence = self.in_flight_fences[frame];
         unsafe {
-            self.core.device.wait_for_fences(&[fence], false, u64::MAX).result()?;
             self.core
                 .device
-                .reset_fences(&[fence])
-                .result()?; // TODO: Move this into the swapchain next_image
+                .wait_for_fences(&[fence], false, u64::MAX)
+                .result()?;
+            self.core.device.reset_fences(&[fence]).result()?; // TODO: Move this into the swapchain next_image
         }
         self.swapchain_img_lut.insert(swapchain_image_index, fence);
         Ok(fence)
@@ -72,5 +84,28 @@ impl Synchronization {
     /// `WinitMainLoop`.
     pub fn swapchain_sync(&self, frame: usize) -> Option<(vk::Semaphore, vk::Semaphore)> {
         self.swapchain_sync.get(frame).copied()
+    }
+}
+
+impl Drop for Synchronization {
+    fn drop(&mut self) {
+        for (i, r) in self.swapchain_sync.drain(..) {
+            unsafe {
+                self.core
+                    .device
+                    .destroy_semaphore(Some(i), None);
+                self.core
+                    .device
+                    .destroy_semaphore(Some(r), None);
+            }
+        }
+
+        for fence in self.in_flight_fences.drain(..) {
+            unsafe {
+                self.core
+                    .device
+                    .destroy_fence(Some(fence), None);
+            }
+        }
     }
 }
