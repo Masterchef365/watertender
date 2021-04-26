@@ -302,22 +302,13 @@ impl Swapchain {
             .image_indices(&image_indices);
 
         // TODO: Handle queue result?
-        let queue_result = unsafe {
+        let _ = unsafe {
             self.core
                 .device
                 .queue_present_khr(self.core.queue, &present_info)
         };
 
-        if queue_result.raw == vk::Result::ERROR_OUT_OF_DATE_KHR {
-            self.free_swapchain();
-            let (swapchain, resize) =
-                Self::create_swapchain(&self.core, self.surface, self.present_mode)?;
-            self.inner = swapchain;
-            Ok(Some(resize))
-        } else {
-            queue_result.result()?;
-            Ok(None)
-        }
+        Ok(None)
     }
 }
 
