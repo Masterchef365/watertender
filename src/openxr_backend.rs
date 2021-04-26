@@ -1,5 +1,5 @@
-use crate::{AppInfo, MainLoop, Platform, PlatformEvent, Core, SharedCore};
-use anyhow::{Result, ensure, bail};
+use crate::{AppInfo, Core, MainLoop, Platform, PlatformEvent, SharedCore};
+use anyhow::{bail, ensure, Result};
 use openxr as xr;
 use std::sync::{
     atomic::{AtomicBool, Ordering},
@@ -26,10 +26,13 @@ pub fn launch<M: MainLoop>(info: AppInfo) -> Result<()> {
     })
     .expect("setting Ctrl-C handler");
 
-    let (core, xr_core) = todo!();
-    let mut app = M::new(&core, Platform::OpenXr {
-        xr_core: &mut xr_core,
-    })?;
+    let (core, xr_core) = build_cores(info)?;
+    let mut app = M::new(
+        &core,
+        Platform::OpenXr {
+            xr_core: &xr_core,
+        },
+    )?;
 
     let mut event_storage = xr::EventDataBuffer::new();
     let mut session_running = false;
@@ -79,11 +82,11 @@ pub fn launch<M: MainLoop>(info: AppInfo) -> Result<()> {
                 }
                 _ => {}
             }
-            app.event(PlatformEvent::OpenXr(
-                &event
-            ), &core, Platform::OpenXr {
-                xr_core: &xr_core,
-            })?;
+            app.event(
+                PlatformEvent::OpenXr(&event),
+                &core,
+                Platform::OpenXr { xr_core: &xr_core },
+            )?;
         }
 
         if !session_running {
@@ -93,8 +96,47 @@ pub fn launch<M: MainLoop>(info: AppInfo) -> Result<()> {
         }
 
         let swapchain_index = todo!();
-        app.frame(crate::Frame { swapchain_index }, &core, Platform::OpenXr {
-            xr_core: &xr_core,
-        })?;
+        app.frame(
+            crate::Frame { swapchain_index },
+            &core,
+            Platform::OpenXr { xr_core: &xr_core },
+        )?;
     }
+}
+
+fn build_cores(info: AppInfo) -> Result<(SharedCore, SharedXrCore)> {
+    // Load OpenXR runtime
+    let xr_entry = xr::Entry::load()?;
+
+    let available_extensions = xr_entry.enumerate_extensions()?;
+    ensure!(
+        available_extensions.khr_vulkan_enable2,
+        "Klystron requires OpenXR with KHR_VULKAN_ENABLE2"
+    );
+
+    let mut enabled_extensions = xr::ExtensionSet::default();
+    enabled_extensions.khr_vulkan_enable2 = true;
+
+    let xr_instance = xr_entry.create_instance(
+        &xr::ApplicationInfo {
+            application_name: &info.name,
+            application_version: info.version,
+            engine_name: crate::ENGINE_NAME,
+            engine_version: crate::engine_version(),
+        },
+        &enabled_extensions,
+        &[],
+    )?;
+    let instance_props = xr_instance.properties()?;
+
+    println!(
+        "Loaded OpenXR runtime: {} {}",
+        instance_props.runtime_name, instance_props.runtime_version
+    );
+
+    let system = xr_instance
+        .system(xr::FormFactor::HEAD_MOUNTED_DISPLAY)
+        .unwrap();
+
+    todo!()
 }
