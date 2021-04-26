@@ -49,6 +49,10 @@ impl FramebufferManager {
     ) -> Result<()> {
         let layers = if self.vr { 2 } else { 1 };
 
+        unsafe {
+            self.core.device.queue_wait_idle(self.core.queue).result()?;
+        }
+
         if let Some(internals) = self.internals.take() {
             internals.free(&self.core);
         }
