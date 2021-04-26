@@ -1,6 +1,6 @@
-use openxr as xr;
-use crate::{MainLoop, AppInfo};
+use crate::{AppInfo, MainLoop};
 use anyhow::Result;
+use openxr as xr;
 //use std::sync::Arc;
 
 /// A container for several commonly-used OpenXR constants.

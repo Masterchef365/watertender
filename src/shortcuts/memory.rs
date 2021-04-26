@@ -39,17 +39,22 @@ impl<T> MemObject<T> {
 
     pub fn write_bytes(&mut self, core: &Core, offset: u64, data: &[u8]) -> Result<()> {
         Ok(unsafe {
-            self.memory_mut().write_bytes(EMD::wrap(&core.device), offset, data)?;
+            self.memory_mut()
+                .write_bytes(EMD::wrap(&core.device), offset, data)?;
         })
     }
 
     pub fn read_bytes(&mut self, core: &Core, offset: u64, data: &mut [u8]) -> Result<()> {
         Ok(unsafe {
-            self.memory_mut().read_bytes(EMD::wrap(&core.device), offset, data)?;
+            self.memory_mut()
+                .read_bytes(EMD::wrap(&core.device), offset, data)?;
         })
     }
 
-    pub fn instance(&self) -> T where T: Copy {
+    pub fn instance(&self) -> T
+    where
+        T: Copy,
+    {
         self.instance
     }
 }

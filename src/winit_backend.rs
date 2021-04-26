@@ -58,7 +58,8 @@ fn begin_loop<M: WinitMainLoop + 'static>(
         },
     )?;
 
-    let (mut swapchain, (images, extent)) = res(Swapchain::new(core.clone(), surface, present_mode));
+    let (mut swapchain, (images, extent)) =
+        res(Swapchain::new(core.clone(), surface, present_mode));
     res(app.swapchain_resize(images, extent));
 
     event_loop.run(move |event, _, control_flow| {
@@ -209,7 +210,8 @@ impl Swapchain {
         if ret.raw == vk::Result::ERROR_OUT_OF_DATE_KHR {
             self.free_swapchain();
 
-            let (swapchain, resize) = Self::create_swapchain(&self.core, self.surface, self.present_mode)?;
+            let (swapchain, resize) =
+                Self::create_swapchain(&self.core, self.surface, self.present_mode)?;
 
             self.inner = swapchain;
 
@@ -285,7 +287,11 @@ impl Swapchain {
         Ok((swapchain, (swapchain_images, surface_caps.current_extent)))
     }
 
-    fn queue_present(&mut self, image_index: u32, render_finished: vk::Semaphore) -> Result<Option<SwapchainImages>> {
+    fn queue_present(
+        &mut self,
+        image_index: u32,
+        render_finished: vk::Semaphore,
+    ) -> Result<Option<SwapchainImages>> {
         // Present to swapchain
         let swapchains = [self.inner];
         let image_indices = [image_index];
@@ -304,7 +310,8 @@ impl Swapchain {
 
         if queue_result.raw == vk::Result::ERROR_OUT_OF_DATE_KHR {
             self.free_swapchain();
-            let (swapchain, resize) = Self::create_swapchain(&self.core, self.surface, self.present_mode)?;
+            let (swapchain, resize) =
+                Self::create_swapchain(&self.core, self.surface, self.present_mode)?;
             self.inner = swapchain;
             Ok(Some(resize))
         } else {

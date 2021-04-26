@@ -91,20 +91,14 @@ impl Drop for Synchronization {
     fn drop(&mut self) {
         for (i, r) in self.swapchain_sync.drain(..) {
             unsafe {
-                self.core
-                    .device
-                    .destroy_semaphore(Some(i), None);
-                self.core
-                    .device
-                    .destroy_semaphore(Some(r), None);
+                self.core.device.destroy_semaphore(Some(i), None);
+                self.core.device.destroy_semaphore(Some(r), None);
             }
         }
 
         for fence in self.in_flight_fences.drain(..) {
             unsafe {
-                self.core
-                    .device
-                    .destroy_fence(Some(fence), None);
+                self.core.device.destroy_fence(Some(fence), None);
             }
         }
     }

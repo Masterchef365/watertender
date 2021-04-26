@@ -1,5 +1,5 @@
 use crate::shortcuts::MemObject;
-use crate::{SharedCore, Core};
+use crate::{Core, SharedCore};
 use anyhow::Result;
 use erupt::vk;
 use gpu_alloc::UsageFlags;
@@ -175,15 +175,11 @@ impl Internals {
         unsafe {
             core.device.device_wait_idle().result().unwrap();
             for frame in self.frames.drain(..) {
-                core
-                    .device
+                core.device
                     .destroy_framebuffer(Some(frame.framebuffer), None);
-                core
-                    .device
-                    .destroy_image_view(Some(frame.image_view), None);
+                core.device.destroy_image_view(Some(frame.image_view), None);
             }
-            core
-                .device
+            core.device
                 .destroy_image_view(Some(self.depth_image_view), None);
             self.depth_image.free(core);
         }

@@ -1,9 +1,9 @@
-use erupt::vk;
 use crate::Core;
 use anyhow::{format_err, Result};
-use std::sync::MutexGuard;
-use gpu_alloc::{GpuAllocator, Request, MemoryBlock};
+use erupt::vk;
+use gpu_alloc::{GpuAllocator, MemoryBlock, Request};
 use gpu_alloc_erupt::EruptMemoryDevice;
+use std::sync::MutexGuard;
 
 pub type Memory = MemoryBlock<vk::DeviceMemory>;
 
@@ -17,8 +17,8 @@ impl Core {
 
     pub fn alloc(&self, request: Request) -> Result<Memory> {
         Ok(unsafe {
-            self.allocator()?.alloc(EruptMemoryDevice::wrap(&self.device), request)?
+            self.allocator()?
+                .alloc(EruptMemoryDevice::wrap(&self.device), request)?
         })
     }
-
 }

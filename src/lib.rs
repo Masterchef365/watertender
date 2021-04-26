@@ -1,8 +1,8 @@
 /// Vulkan implementation supplied by Erupt
 pub use erupt::vk;
 
-use erupt::extensions::khr_surface::ColorSpaceKHR;
 use anyhow::Result;
+use erupt::extensions::khr_surface::ColorSpaceKHR;
 use erupt::{utils::loading::DefaultEntryLoader, DeviceLoader, InstanceLoader};
 use gpu_alloc::GpuAllocator;
 use std::sync::{Arc, Mutex};
