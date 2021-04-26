@@ -1,8 +1,8 @@
 #![allow(unused)]
 use anyhow::Result;
 use shortcuts::{
-    create_render_pass, shader, FramebufferManager, ManagedBuffer, Synchronization,
-    UsageFlags, Vertex,
+    create_render_pass, shader, FramebufferManager, ManagedBuffer, Synchronization, UsageFlags,
+    Vertex,
 };
 use watertender::*;
 
@@ -244,24 +244,29 @@ impl MainLoop for App {
         }
 
         let command_buffers = [command_buffer];
-        let (wait_semaphores, signal_semaphores) = if let Some((image_available, render_finished)) =
+        let submit_info = if let Some((image_available, render_finished)) =
             self.sync.swapchain_sync(self.frame)
         {
-            (vec![image_available], vec![render_finished])
+            let wait_semaphores = [image_available];
+            let signal_semaphores = [render_finished];
+            let submit_info = vk::SubmitInfoBuilder::new()
+                .wait_semaphores(&wait_semaphores)
+                .wait_dst_stage_mask(&[vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT])
+                .command_buffers(&command_buffers)
+                .signal_semaphores(&signal_semaphores);
+            unsafe {
+                core.device
+                    .queue_submit(core.queue, &[submit_info], Some(fence))
+                    .result()?;
+            }
         } else {
-            (vec![], vec![])
+            let submit_info = vk::SubmitInfoBuilder::new().command_buffers(&command_buffers);
+            unsafe {
+                core.device
+                    .queue_submit(core.queue, &[submit_info], Some(fence))
+                    .result()?;
+            }
         };
-
-        let submit_info = vk::SubmitInfoBuilder::new()
-            .wait_semaphores(&wait_semaphores)
-            .wait_dst_stage_mask(&[vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT])
-            .command_buffers(&command_buffers)
-            .signal_semaphores(&signal_semaphores);
-        unsafe {
-            core.device
-                .queue_submit(core.queue, &[submit_info], Some(fence))
-                .result()?;
-        }
 
         self.frame = (self.frame + 1) % FRAMES_IN_FLIGHT;
 
