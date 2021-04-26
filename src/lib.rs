@@ -88,7 +88,7 @@ pub enum PlatformEvent<'a, 'b> {
     #[cfg(feature = "winit")]
     Winit(&'b winit::event::Event<'a, ()>),
     #[cfg(feature = "openxr")]
-    OpenXr(openxr::Event<'a>),
+    OpenXr(&'b openxr::Event<'a>),
 }
 
 /// Multi-platform

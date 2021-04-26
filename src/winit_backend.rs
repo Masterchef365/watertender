@@ -30,7 +30,7 @@ pub fn launch<M: WinitMainLoop + 'static>(info: AppInfo) -> Result<()> {
     begin_loop::<M>(core, event_loop, window, surface, present_mode)
 }
 
-// TODO: Swap this out for better behaviour! (At least gracefully exit sorta)
+// TODO: Swap this out for better behaviour! (At least sorta exit gracefully...)
 fn res<T>(r: Result<T>) -> T {
     match r {
         Err(e) => {
