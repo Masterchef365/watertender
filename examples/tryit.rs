@@ -1,7 +1,8 @@
 #![allow(unused)]
 use anyhow::Result;
 use shortcuts::{
-    create_render_pass, shader, FramebufferManager, ManagedBuffer, Synchronization, UsageFlags, Vertex,
+    create_render_pass, shader, FramebufferManager, ManagedBuffer, Synchronization,
+    UsageFlags, Vertex,
 };
 use watertender::*;
 
@@ -154,7 +155,12 @@ impl MainLoop for App {
         })
     }
 
-    fn frame(&mut self, frame: Frame, core: &SharedCore, platform: Platform<'_>) -> Result<()> {
+    fn frame(
+        &mut self,
+        frame: Frame,
+        core: &SharedCore,
+        platform: Platform<'_>,
+    ) -> Result<PlatformReturn> {
         let fence = self.sync.sync(frame.swapchain_index, self.frame)?;
 
         let command_buffer = self.command_buffers[self.frame];
@@ -258,7 +264,23 @@ impl MainLoop for App {
         }
 
         self.frame = (self.frame + 1) % FRAMES_IN_FLIGHT;
-        Ok(())
+
+        let ret = match platform {
+            Platform::Winit { .. } => PlatformReturn::Winit,
+            Platform::OpenXr {
+                xr_core,
+                frame_state,
+            } => {
+                let (_, views) = xr_core.session.locate_views(
+                    openxr::ViewConfigurationType::PRIMARY_STEREO,
+                    frame_state.expect("No frame state").predicted_display_time,
+                    &xr_core.stage,
+                )?;
+                PlatformReturn::OpenXr(views)
+            }
+        };
+
+        Ok(ret)
     }
 
     fn swapchain_resize(&mut self, images: Vec<vk::Image>, extent: vk::Extent2D) -> Result<()> {
@@ -273,8 +295,8 @@ impl MainLoop for App {
     ) -> Result<()> {
         if let PlatformEvent::Winit(winit::event::Event::WindowEvent { event, .. }) = event {
             if let winit::event::WindowEvent::CloseRequested = event {
-                if let Platform::Winit { flow, .. } = platform {
-                    *flow = winit::event_loop::ControlFlow::Exit;
+                if let Platform::Winit { control_flow, .. } = platform {
+                    *control_flow = winit::event_loop::ControlFlow::Exit;
                 }
             }
         }

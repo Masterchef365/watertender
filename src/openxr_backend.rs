@@ -30,7 +30,7 @@ pub fn launch<M: MainLoop>(info: AppInfo) -> Result<()> {
 
     let (core, xr_core, frame_stream, mut frame_waiter) = build_cores(info)?;
     let mut swapchain = Swapchain::new(core.clone(), xr_core.clone(), frame_stream)?;
-    let mut app = M::new(&core, Platform::OpenXr { xr_core: &xr_core })?;
+    let mut app = M::new(&core, Platform::OpenXr { xr_core: &xr_core, frame_state: None })?;
 
     let mut event_storage = xr::EventDataBuffer::new();
     let mut session_running = false;
@@ -83,7 +83,7 @@ pub fn launch<M: MainLoop>(info: AppInfo) -> Result<()> {
             app.event(
                 PlatformEvent::OpenXr(&event),
                 &core,
-                Platform::OpenXr { xr_core: &xr_core },
+                Platform::OpenXr { xr_core: &xr_core, frame_state: None },
             )?;
         }
 
@@ -111,7 +111,7 @@ pub fn launch<M: MainLoop>(info: AppInfo) -> Result<()> {
         let ret = app.frame(
             crate::Frame { swapchain_index },
             &core,
-            Platform::OpenXr { xr_core: &xr_core },
+            Platform::OpenXr { xr_core: &xr_core, frame_state: Some(xr_frame_state) },
         )?;
         let views = match ret {
             PlatformReturn::OpenXr(v) => v,
@@ -177,7 +177,7 @@ fn build_cores(
         vk::version_patch(vk_version),
     );
 
-    println!("Loaded Vulkan version {}", vk_version);
+    println!("Loaded Vulkan version {}", xr_vk_version);
     let reqs = xr_instance
         .graphics_requirements::<xr::Vulkan>(system)
         .unwrap();

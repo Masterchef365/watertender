@@ -99,7 +99,10 @@ pub enum Platform<'a> {
         control_flow: &'a mut winit::event_loop::ControlFlow, // TODO: Part of PlatformReturn?
     },
     #[cfg(feature = "openxr")]
-    OpenXr { xr_core: &'a openxr_backend::XrCore },
+    OpenXr { 
+        xr_core: &'a openxr_backend::XrCore,
+        frame_state: Option<openxr::FrameState>,
+    },
 }
 
 /// Multi-platform return value
