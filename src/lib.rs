@@ -28,7 +28,7 @@ pub trait MainLoop: Sized {
     fn new(core: &SharedCore, platform: Platform<'_>) -> Result<Self>;
 
     /// A frame handled by your app. The command buffers in `frame` are already reset and have begun, and will be ended and submitted.
-    fn frame(&mut self, frame: Frame, core: &SharedCore, platform: Platform<'_>) -> Result<()>;
+    fn frame(&mut self, frame: Frame, core: &SharedCore, platform: Platform<'_>) -> Result<PlatformReturn>;
 
     /// Renderpass used to output to the framebuffer provided in Frame
     fn swapchain_resize(&mut self, images: Vec<vk::Image>, extent: vk::Extent2D) -> Result<()>;
@@ -94,13 +94,22 @@ pub enum PlatformEvent<'a, 'b> {
 /// Multi-platform
 pub enum Platform<'a> {
     #[cfg(feature = "winit")]
-    Winit {
+    Winit { 
         window: &'a winit::window::Window,
-        flow: &'a mut winit::event_loop::ControlFlow,
+        control_flow: &'a mut winit::event_loop::ControlFlow, // TODO: Part of PlatformReturn?
     },
     #[cfg(feature = "openxr")]
     OpenXr { xr_core: &'a openxr_backend::XrCore },
 }
+
+/// Multi-platform return value
+pub enum PlatformReturn {
+    #[cfg(feature = "winit")]
+    Winit,
+    #[cfg(feature = "openxr")]
+    OpenXr(Vec<openxr::View>),
+}
+
 
 impl Platform<'_> {
     pub fn is_vr(&self) -> bool {

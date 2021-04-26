@@ -1,4 +1,4 @@
-use crate::{AppInfo, Core, MainLoop, Platform, PlatformEvent, SharedCore};
+use crate::{AppInfo, Core, MainLoop, Platform, PlatformEvent, PlatformReturn, SharedCore};
 use anyhow::{bail, ensure, Context, Result};
 use erupt::{cstr, vk, DeviceLoader, EntryLoader, InstanceLoader};
 use gpu_alloc::{self, GpuAllocator};
@@ -29,7 +29,7 @@ pub fn launch<M: MainLoop>(info: AppInfo) -> Result<()> {
     .expect("setting Ctrl-C handler");
 
     let (core, xr_core, frame_stream, mut frame_waiter) = build_cores(info)?;
-    let swapchain = Swapchain::new(frame_stream);
+    let mut swapchain = Swapchain::new(core.clone(), xr_core.clone(), frame_stream)?;
     let mut app = M::new(&core, Platform::OpenXr { xr_core: &xr_core })?;
 
     let mut event_storage = xr::EventDataBuffer::new();
@@ -93,13 +93,33 @@ pub fn launch<M: MainLoop>(info: AppInfo) -> Result<()> {
             continue;
         }
 
-        let xr_frame_state = frame_waiter.wait()?;
-        let swapchain_index = todo!();
-        app.frame(
+        // Get next frame
+        let xr_frame_state = frame_waiter.wait()?; // TODO: Move this around for better latency?
+
+        let (swapchain_index, resize) = swapchain.next_frame(xr_frame_state)?;
+        let swapchain_index = match swapchain_index {
+            Some(i) => i,
+            None => continue, // Don't draw
+        };
+
+        // Resize swapchain if necessary
+        if let Some((images, extent)) = resize {
+            app.swapchain_resize(images, extent)?;
+        }
+
+        // Run the app
+        let ret = app.frame(
             crate::Frame { swapchain_index },
             &core,
             Platform::OpenXr { xr_core: &xr_core },
         )?;
+        let views = match ret {
+            PlatformReturn::OpenXr(v) => v,
+            _ => bail!("Wrong platform return"),
+        };
+
+        // Present the image
+        swapchain.queue_present(xr_frame_state, views)?;
     }
 }
 
@@ -343,10 +363,145 @@ fn build_cores(
     Ok((core, xr_core, frame_stream, frame_wait))
 }
 
-struct Swapchain;
+pub struct Swapchain {
+    frame_stream: xr::FrameStream<xr::Vulkan>,
+    swapchain: Option<xr::Swapchain<xr::Vulkan>>,
+    xr_core: SharedXrCore,
+    core: SharedCore,
+    current_extent: vk::Extent2D,
+}
+
+type SwapchainImages = (Vec<vk::Image>, vk::Extent2D);
 
 impl Swapchain {
-    pub fn new(_frame_stream: xr::FrameStream<xr::Vulkan>) -> Result<Self> {
-        todo!()
+    /// Create a new engine instance. Returns the OpenXr caddy for use with input handling.
+    pub fn new(core: SharedCore, xr_core: SharedXrCore, frame_stream: xr::FrameStream<xr::Vulkan>) -> Result<Self> {
+        Ok(Self {
+            swapchain: None,
+            frame_stream,
+            current_extent: vk::Extent2D::default(),
+            xr_core,
+            core,
+        })
+    }
+
+    /// Render a frame of video.
+    /// Returns false when the loop should break
+    pub fn next_frame(&mut self, xr_frame_state: xr::FrameState) -> Result<(Option<u32>, Option<SwapchainImages>)> {
+        // Wait for OpenXR to signal it has a frame ready
+        self.frame_stream.begin()?;
+
+        if !xr_frame_state.should_render {
+            self.frame_stream.end(
+                xr_frame_state.predicted_display_time,
+                xr::EnvironmentBlendMode::OPAQUE,
+                &[],
+            )?;
+            return Ok((None, None));
+        }
+
+        let resize = if self.swapchain.is_none() {
+            Some(self.recreate_swapchain()?)
+        } else {
+            None
+        };
+
+        let swapchain = self.swapchain.as_mut().unwrap();
+
+        let image_index = swapchain.acquire_image()?;
+
+        swapchain.wait_image(xr::Duration::INFINITE)?; // TODO: This should perhaps go RIGHT BEFORE the submit!
+
+        Ok((Some(image_index), resize))
+    }
+
+    pub fn queue_present(&mut self, xr_frame_state: xr::FrameState, views: Vec<xr::View>) -> Result<()> {
+        let swapchain = self.swapchain.as_mut().unwrap();
+
+        // Present to swapchain
+        swapchain.release_image()?;
+
+        // Tell OpenXR what to present for this frame
+        let rect = xr::Rect2Di {
+            offset: xr::Offset2Di { x: 0, y: 0 },
+            extent: xr::Extent2Di {
+                width: self.current_extent.width as _,
+                height: self.current_extent.height as _,
+            },
+        };
+        self.frame_stream.end(
+            xr_frame_state.predicted_display_time,
+            xr::EnvironmentBlendMode::OPAQUE,
+            &[&xr::CompositionLayerProjection::new()
+                .space(&self.xr_core.stage)
+                .views(&[
+                    xr::CompositionLayerProjectionView::new()
+                        .pose(views[0].pose)
+                        .fov(views[0].fov)
+                        .sub_image(
+                            xr::SwapchainSubImage::new()
+                                .swapchain(&swapchain)
+                                .image_array_index(0)
+                                .image_rect(rect),
+                        ),
+                    xr::CompositionLayerProjectionView::new()
+                        .pose(views[1].pose)
+                        .fov(views[1].fov)
+                        .sub_image(
+                            xr::SwapchainSubImage::new()
+                                .swapchain(&swapchain)
+                                .image_array_index(1)
+                                .image_rect(rect),
+                        ),
+                ])],
+        )?;
+
+        Ok(())
+    }
+
+    fn recreate_swapchain(&mut self) -> Result<SwapchainImages> {
+        self.swapchain = None;
+
+        let views = self
+            .xr_core
+            .instance
+            .enumerate_view_configuration_views(
+                self.xr_core.system,
+                xr::ViewConfigurationType::PRIMARY_STEREO,
+            )
+            .unwrap();
+
+        let extent = vk::Extent2D {
+            width: views[0].recommended_image_rect_width,
+            height: views[0].recommended_image_rect_height,
+        };
+
+        let swapchain = self
+            .xr_core
+            .session
+            .create_swapchain(&xr::SwapchainCreateInfo {
+                create_flags: xr::SwapchainCreateFlags::EMPTY,
+                usage_flags: xr::SwapchainUsageFlags::COLOR_ATTACHMENT
+                    | xr::SwapchainUsageFlags::SAMPLED,
+                format: crate::COLOR_FORMAT.0 as _,
+                sample_count: 1,
+                width: extent.width,
+                height: extent.height,
+                face_count: 1,
+                array_size: 2,
+                mip_count: 1,
+            })
+            .unwrap();
+
+        let swapchain_images = swapchain
+            .enumerate_images()?
+            .into_iter()
+            .map(vk::Image)
+            .collect::<Vec<_>>();
+
+        self.swapchain = Some(swapchain);
+        self.current_extent = extent;
+
+        Ok((swapchain_images, extent))
     }
 }

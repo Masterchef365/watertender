@@ -54,7 +54,7 @@ fn begin_loop<M: WinitMainLoop + 'static>(
         &core,
         Platform::Winit {
             window: &window,
-            flow: &mut Default::default(),
+            control_flow: &mut Default::default(),
         },
     )?;
 
@@ -68,7 +68,7 @@ fn begin_loop<M: WinitMainLoop + 'static>(
             &core,
             Platform::Winit {
                 window: &window,
-                flow: control_flow,
+                control_flow,
             },
         ));
 
@@ -88,7 +88,7 @@ fn begin_loop<M: WinitMainLoop + 'static>(
                     &core,
                     Platform::Winit {
                         window: &window,
-                        flow: control_flow,
+                        control_flow,
                     },
                 ));
                 res(swapchain.queue_present(swapchain_index, render_finished));
