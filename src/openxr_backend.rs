@@ -1,13 +1,12 @@
-use erupt::{vk, EntryLoader, cstr, InstanceLoader};
 use crate::{AppInfo, Core, MainLoop, Platform, PlatformEvent, SharedCore};
-use anyhow::{bail, ensure, Result, Context};
+use anyhow::{bail, ensure, Context, Result};
+use erupt::{cstr, vk, DeviceLoader, EntryLoader, InstanceLoader};
+use gpu_alloc::{self, GpuAllocator};
 use openxr as xr;
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc,
-};
+use std::ffi::{CStr, CString};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use std::ffi::{CString, CStr};
 
 pub type SharedXrCore = Arc<XrCore>;
 
@@ -16,6 +15,7 @@ pub struct XrCore {
     pub instance: xr::Instance,
     pub session: xr::Session<xr::Vulkan>,
     pub system: xr::SystemId,
+    pub stage: xr::Space,
 }
 
 /// Launch an `App` using OpenXR as a surface and input mechanism for VR
@@ -28,7 +28,8 @@ pub fn launch<M: MainLoop>(info: AppInfo) -> Result<()> {
     })
     .expect("setting Ctrl-C handler");
 
-    let (core, xr_core) = build_cores(info)?;
+    let (core, xr_core, frame_stream, mut frame_waiter) = build_cores(info)?;
+    let swapchain = Swapchain::new(frame_stream);
     let mut app = M::new(&core, Platform::OpenXr { xr_core: &xr_core })?;
 
     let mut event_storage = xr::EventDataBuffer::new();
@@ -92,6 +93,7 @@ pub fn launch<M: MainLoop>(info: AppInfo) -> Result<()> {
             continue;
         }
 
+        let xr_frame_state = frame_waiter.wait()?;
         let swapchain_index = todo!();
         app.frame(
             crate::Frame { swapchain_index },
@@ -101,7 +103,14 @@ pub fn launch<M: MainLoop>(info: AppInfo) -> Result<()> {
     }
 }
 
-fn build_cores(info: AppInfo) -> Result<(SharedCore, SharedXrCore)> {
+fn build_cores(
+    info: AppInfo,
+) -> Result<(
+    SharedCore,
+    SharedXrCore,
+    xr::FrameStream<xr::Vulkan>,
+    xr::FrameWaiter,
+)> {
     // Load OpenXR runtime
     let xr_entry = xr::Entry::load()?;
 
@@ -190,34 +199,39 @@ fn build_cores(info: AppInfo) -> Result<(SharedCore, SharedXrCore)> {
         .enabled_extension_names(&vk_instance_extensions)
         .build();
 
-    let vk_instance = unsafe { xr_instance.create_vulkan_instance(
-        system,
-        std::mem::transmute(vk_entry.get_instance_proc_addr),
-        &create_info as *const _ as _,
-    ) }?.map_err(|_| anyhow::format_err!("OpenXR failed to create Vulkan instance"))?;
+    let vk_instance = unsafe {
+        xr_instance.create_vulkan_instance(
+            system,
+            std::mem::transmute(vk_entry.get_instance_proc_addr),
+            &create_info as *const _ as _,
+        )
+    }?
+    .map_err(|_| anyhow::format_err!("OpenXR failed to create Vulkan instance"))?;
     let vk_instance = vk::Instance(vk_instance as _);
 
     // Create instance loader (for Erupt)
     let symbol = |name| unsafe { (vk_entry.get_instance_proc_addr)(vk_instance, name) };
 
-    let vk_instance_ext_cstrs = unsafe { vk_instance_extensions.iter().map(|&p| CStr::from_ptr(p)).collect::<Vec<_>>() };
+    let vk_instance_ext_cstrs = unsafe {
+        vk_instance_extensions
+            .iter()
+            .map(|&p| CStr::from_ptr(p))
+            .collect::<Vec<_>>()
+    };
     let vk_instance = unsafe {
-
-        let instance_enabled = erupt::InstanceEnabled::new(
-            vk_version,
-            &vk_instance_ext_cstrs,
-            &[],
-        )?;
+        let instance_enabled =
+            erupt::InstanceEnabled::new(vk_version, &vk_instance_ext_cstrs, &[])?;
         InstanceLoader::custom(&vk_entry, vk_instance, instance_enabled, symbol)
     }?;
 
-    // Obtain physical vk_device, queue_family_index, and vk_device from OpenXR
+    // Obtain physical vk_device
     let vk_physical_device = vk::PhysicalDevice(
         xr_instance
-        .vulkan_graphics_device(system, vk_instance.handle.0 as _)
-        .unwrap() as _,
+            .vulkan_graphics_device(system, vk_instance.handle.0 as _)
+            .unwrap() as _,
     );
 
+    // Get queue
     let queue_family_index = unsafe {
         vk_instance
             .get_physical_device_queue_family_properties(vk_physical_device, None)
@@ -230,20 +244,23 @@ fn build_cores(info: AppInfo) -> Result<(SharedCore, SharedXrCore)> {
                     None
                 }
             })
-        .next()
+            .next()
             .context("Vulkan vk_device has no graphics queue")?
     };
 
+    // Create device
     let priorities = [1.0];
     let queues = [vk::DeviceQueueCreateInfoBuilder::new()
         .queue_family_index(queue_family_index)
         .queue_priorities(&priorities)];
+
     let mut create_info = vk::DeviceCreateInfoBuilder::new()
         .queue_create_infos(&queues)
         .enabled_layer_names(&vk_device_layers)
         .enabled_extension_names(&vk_device_extensions)
         .build();
 
+    // Enable multiview
     let mut phys_device_features = erupt::vk1_2::PhysicalDeviceVulkan11Features {
         multiview: vk::TRUE,
         ..Default::default()
@@ -251,6 +268,85 @@ fn build_cores(info: AppInfo) -> Result<(SharedCore, SharedXrCore)> {
 
     create_info.p_next = &mut phys_device_features as *mut _ as _;
 
+    // Get Vulkan Device from OpenXR
+    let vk_device = unsafe {
+        xr_instance.create_vulkan_device(
+            system,
+            std::mem::transmute(vk_entry.get_instance_proc_addr),
+            vk_physical_device.0 as _,
+            &create_info as *const _ as _,
+        )
+    }?
+    .map_err(vk::Result)?;
+    let vk_device = vk::Device(vk_device as _);
 
-    todo!()
+    // Create DeviceLoader for erupt
+    let vk_device_ext_cstrs = unsafe {
+        vk_device_extensions
+            .iter()
+            .map(|&p| CStr::from_ptr(p))
+            .collect::<Vec<_>>()
+    };
+    let device_enabled = unsafe { erupt::DeviceEnabled::new(&vk_device_ext_cstrs) };
+    let vk_device =
+        unsafe { DeviceLoader::custom(&vk_instance, vk_device, device_enabled, symbol)? };
+
+    // Create queue
+    let queue = unsafe { vk_device.get_device_queue(queue_family_index, 0, None) };
+
+    // Create allocator
+    let device_props =
+        unsafe { gpu_alloc_erupt::device_properties(&vk_instance, vk_physical_device)? };
+    let allocator = Mutex::new(GpuAllocator::new(
+        gpu_alloc::Config::i_am_prototyping(),
+        device_props,
+    ));
+
+    // OpenXR session
+    let (session, frame_wait, frame_stream) = unsafe {
+        xr_instance.create_session::<xr::Vulkan>(
+            system,
+            &xr::vulkan::SessionCreateInfo {
+                instance: vk_instance.handle.0 as _,
+                physical_device: vk_physical_device.0 as _,
+                device: vk_device.handle.0 as _,
+                queue_family_index,
+                queue_index: 0,
+            },
+        )
+    }?;
+
+    // Create stage
+    let stage = session
+        .create_reference_space(xr::ReferenceSpaceType::STAGE, xr::Posef::IDENTITY)
+        .unwrap();
+
+    // Create Core
+    let core = SharedCore::new(Core {
+        queue,
+        queue_family: queue_family_index,
+        allocator,
+        device: vk_device,
+        physical_device: vk_physical_device,
+        instance: vk_instance,
+        entry: vk_entry,
+    });
+
+    // Create XrCore
+    let xr_core = SharedXrCore::new(XrCore {
+        instance: xr_instance,
+        session,
+        system,
+        stage,
+    });
+
+    Ok((core, xr_core, frame_stream, frame_wait))
+}
+
+struct Swapchain;
+
+impl Swapchain {
+    pub fn new(_frame_stream: xr::FrameStream<xr::Vulkan>) -> Result<Self> {
+        todo!()
+    }
 }
