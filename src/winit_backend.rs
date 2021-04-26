@@ -190,7 +190,7 @@ impl Swapchain {
         surface: SurfaceKHR,
         present_mode: PresentModeKHR,
     ) -> Result<(Self, SwapchainImages)> {
-        let (inner, images) = Self::create_swapchain(&core, surface, present_mode)?;
+        let (inner, images) = Self::create_swapchain(&core, surface, present_mode, None)?;
         let instance = Self {
             inner,
             surface,
@@ -208,15 +208,8 @@ impl Swapchain {
 
         // Early return and invalidate swapchain
         if ret.raw == vk::Result::ERROR_OUT_OF_DATE_KHR {
-            self.free_swapchain();
-
-            let (swapchain, resize) =
-                Self::create_swapchain(&self.core, self.surface, self.present_mode)?;
-
-            self.inner = swapchain;
-
+            let resize = self.rebuild_swapchain()?;
             let img_idx = self.acquire_image(image_available).result()?; // Fail if we already tried once
-
             Ok((img_idx, Some(resize)))
         } else {
             Ok((ret.result()?, None))
@@ -247,6 +240,7 @@ impl Swapchain {
         core: &Core,
         surface: SurfaceKHR,
         present_mode: PresentModeKHR,
+        old_swapchain: Option<SwapchainKHR>,
     ) -> Result<(SwapchainKHR, SwapchainImages)> {
         let surface_caps = unsafe {
             core.instance.get_physical_device_surface_capabilities_khr(
@@ -276,7 +270,10 @@ impl Swapchain {
             .composite_alpha(khr_surface::CompositeAlphaFlagBitsKHR::OPAQUE_KHR)
             .present_mode(present_mode)
             .clipped(true)
-            .old_swapchain(khr_swapchain::SwapchainKHR::null());
+            .old_swapchain(match old_swapchain {
+                Some(s) => s,
+                None => SwapchainKHR::null()
+            });
 
         let swapchain =
             unsafe { core.device.create_swapchain_khr(&create_info, None, None) }.result()?;
@@ -291,7 +288,7 @@ impl Swapchain {
         &mut self,
         image_index: u32,
         render_finished: vk::Semaphore,
-    ) -> Result<Option<SwapchainImages>> {
+    ) -> Result<()> {
         // Present to swapchain
         let swapchains = [self.inner];
         let image_indices = [image_index];
@@ -308,7 +305,15 @@ impl Swapchain {
                 .queue_present_khr(self.core.queue, &present_info)
         };
 
-        Ok(None)
+        Ok(())
+    }
+
+    fn rebuild_swapchain(&mut self) -> Result<SwapchainImages> {
+        let (swapchain, resize) =
+            Self::create_swapchain(&self.core, self.surface, self.present_mode, Some(self.inner))?;
+        self.free_swapchain();
+        self.inner = swapchain;
+        Ok(resize)
     }
 }
 
