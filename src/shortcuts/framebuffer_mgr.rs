@@ -1,4 +1,4 @@
-use crate::shortcuts::MemObject;
+use crate::shortcuts::ManagedImage;
 use crate::{Core, SharedCore};
 use anyhow::Result;
 use erupt::vk;
@@ -13,7 +13,7 @@ pub struct FramebufferManager {
 
 struct Internals {
     pub extent: vk::Extent2D,
-    depth_image: MemObject<vk::Image>,
+    _depth_image: ManagedImage,
     depth_image_view: vk::ImageView,
     frames: Vec<Frame>,
 }
@@ -76,8 +76,7 @@ impl FramebufferManager {
             .samples(vk::SampleCountFlagBits::_1)
             .sharing_mode(vk::SharingMode::EXCLUSIVE);
 
-        let depth_image =
-            MemObject::new_image(&self.core, create_info, UsageFlags::FAST_DEVICE_ACCESS)?;
+        let depth_image = ManagedImage::new(self.core.clone(), create_info, UsageFlags::FAST_DEVICE_ACCESS)?;
 
         let create_info = vk::ImageViewCreateInfoBuilder::new()
             .image(depth_image.instance())
@@ -145,7 +144,7 @@ impl FramebufferManager {
             .collect::<Result<Vec<_>>>()?;
 
         self.internals = Some(Internals {
-            depth_image,
+            _depth_image: depth_image,
             depth_image_view,
             extent,
             frames,
@@ -181,7 +180,6 @@ impl Internals {
             }
             core.device
                 .destroy_image_view(Some(self.depth_image_view), None);
-            self.depth_image.free(core);
         }
     }
 }

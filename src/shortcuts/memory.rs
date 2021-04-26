@@ -1,6 +1,5 @@
-use crate::Core;
+use crate::{Core, SharedCore};
 use anyhow::Result;
-use drop_bomb::DropBomb;
 use erupt::vk1_0 as vk;
 pub use gpu_alloc::{Request, UsageFlags};
 use gpu_alloc_erupt::EruptMemoryDevice as EMD;
@@ -21,81 +20,30 @@ impl Core {
     }
 }
 
-/// Simple allocated vk::Image or vk::Buffer
-pub struct MemObject<T> {
-    instance: T,
+/// Image with associated memory, deallocates on drop. Best not to keep huge arrays of these; they
+/// waste memory.
+pub struct ManagedImage {
+    instance: vk::Image,
     memory: Option<MemoryBlock>,
-    bomb: DropBomb,
+    core: SharedCore,
 }
 
-impl<T> MemObject<T> {
-    pub fn memory(&self) -> &MemoryBlock {
-        self.memory.as_ref().expect("Use after free")
-    }
-
-    pub fn memory_mut(&mut self) -> &mut MemoryBlock {
-        self.memory.as_mut().expect("Use after free")
-    }
-
-    pub fn write_bytes(&mut self, core: &Core, offset: u64, data: &[u8]) -> Result<()> {
-        Ok(unsafe {
-            self.memory_mut()
-                .write_bytes(EMD::wrap(&core.device), offset, data)?;
-        })
-    }
-
-    pub fn read_bytes(&mut self, core: &Core, offset: u64, data: &mut [u8]) -> Result<()> {
-        Ok(unsafe {
-            self.memory_mut()
-                .read_bytes(EMD::wrap(&core.device), offset, data)?;
-        })
-    }
-
-    pub fn instance(&self) -> T
-    where
-        T: Copy,
-    {
-        self.instance
-    }
+/// Buffer with associated memory, deallocates on drop. Best not to keep huge arrays of these; they
+/// waste memory.
+pub struct ManagedBuffer {
+    instance: vk::Buffer,
+    pub memory: Option<MemoryBlock>,
+    pub core: SharedCore,
 }
 
-impl MemObject<vk::Image> {
-    /// Allocate a new image with the given usage. Note that for the view builder, `image` does not
-    /// need to be specified as this method will handle adding it.
-    pub fn new_image(
-        core: &Core,
-        create_info: vk::ImageCreateInfoBuilder<'static>,
-        usage: gpu_alloc::UsageFlags,
-    ) -> Result<Self> {
-        let instance = unsafe { core.device.create_image(&create_info, None, None) }.result()?;
-        let memory = core.allocate(image_memory_req(&core, instance, usage))?;
-        unsafe {
-            core.device
-                .bind_image_memory(instance, *memory.memory(), memory.offset())
-                .result()?;
-        }
-        Ok(Self {
-            instance,
-            memory: Some(memory),
-            bomb: DropBomb::new("Image memory object dropped without calling free()!"),
-        })
-    }
 
-    pub fn free(&mut self, core: &Core) {
-        unsafe {
-            core.device.destroy_image(Some(self.instance), None);
-            core.deallocate(self.memory.take().expect("Double free of image memory"))
-                .unwrap();
-            self.bomb.defuse();
-        }
-    }
-}
+const USE_AFTER_FREE_MSG: &str = "Use-after-free!";
 
-impl MemObject<vk::Buffer> {
+impl ManagedBuffer {
     /// Allocate a new buffer with the given usage. Note that for the view builder, `buffer` does not
     /// need to be specified as this method will handle adding it.
-    pub fn new_buffer(
-        core: &Core,
+    pub fn new(
+        core: SharedCore,
         create_info: vk::BufferCreateInfoBuilder<'static>,
         usage: gpu_alloc::UsageFlags,
     ) -> Result<Self> {
@@ -109,17 +57,67 @@ impl MemObject<vk::Buffer> {
         Ok(Self {
             instance,
             memory: Some(memory),
-            bomb: DropBomb::new("Buffer memory object dropped without calling free()!"),
+            core,
         })
     }
 
-    pub fn free(&mut self, core: &Core) {
+    pub fn write_bytes(&mut self, offset: u64, data: &[u8]) -> Result<()> {
+        Ok(unsafe {
+            self.memory.as_mut().expect(USE_AFTER_FREE_MSG)
+                .write_bytes(EMD::wrap(&self.core.device), offset, data)?;
+        })
+    }
+
+    pub fn read_bytes(&mut self, offset: u64, data: &mut [u8]) -> Result<()> {
+        Ok(unsafe {
+            self.memory.as_mut().expect(USE_AFTER_FREE_MSG)
+                .read_bytes(EMD::wrap(&self.core.device), offset, data)?;
+        })
+    }
+
+    pub fn instance(&self) -> vk::Buffer {
+        self.instance
+    }
+}
+
+impl ManagedImage {
+    /// Allocate a new image with the given usage. Note that for the view builder, `image` does not
+    /// need to be specified as this method will handle adding it.
+    pub fn new(
+        core: SharedCore,
+        create_info: vk::ImageCreateInfoBuilder<'static>,
+        usage: gpu_alloc::UsageFlags,
+    ) -> Result<Self> {
+        let instance = unsafe { core.device.create_image(&create_info, None, None) }.result()?;
+        let memory = core.allocate(image_memory_req(&core, instance, usage))?;
         unsafe {
-            core.device.destroy_buffer(Some(self.instance), None);
-            core.deallocate(self.memory.take().expect("Double free of buffer memory"))
-                .unwrap();
-            self.bomb.defuse();
+            core.device
+                .bind_image_memory(instance, *memory.memory(), memory.offset())
+                .result()?;
         }
+        Ok(Self {
+            core,
+            instance,
+            memory: Some(memory),
+        })
+    }
+
+    pub fn write_bytes(&mut self, offset: u64, data: &[u8]) -> Result<()> {
+        Ok(unsafe {
+            self.memory.as_mut().expect(USE_AFTER_FREE_MSG)
+                .write_bytes(EMD::wrap(&self.core.device), offset, data)?;
+        })
+    }
+
+    pub fn read_bytes(&mut self, offset: u64, data: &mut [u8]) -> Result<()> {
+        Ok(unsafe {
+            self.memory.as_mut().expect(USE_AFTER_FREE_MSG)
+                .read_bytes(EMD::wrap(&self.core.device), offset, data)?;
+        })
+    }
+
+    pub fn instance(&self) -> vk::Image {
+        self.instance
     }
 }
 
@@ -149,5 +147,23 @@ pub fn request_from_usage_requirements(
         align_mask: requirements.alignment,
         usage,
         memory_types: requirements.memory_type_bits,
+    }
+}
+
+impl Drop for ManagedImage {
+    fn drop(&mut self) {
+        unsafe {
+            self.core.device.destroy_image(Some(self.instance), None);
+            self.core.deallocate(self.memory.take().expect("Double free of image memory")).unwrap();
+        }
+    }
+}
+
+impl Drop for ManagedBuffer {
+    fn drop(&mut self) {
+        unsafe {
+            self.core.device.destroy_buffer(Some(self.instance), None);
+            self.core.deallocate(self.memory.take().expect("Double free of image memory")).unwrap();
+        }
     }
 }

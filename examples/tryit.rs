@@ -1,7 +1,7 @@
 #![allow(unused)]
 use anyhow::Result;
 use shortcuts::{
-    create_render_pass, shader, FramebufferManager, MemObject, Synchronization, UsageFlags, Vertex,
+    create_render_pass, shader, FramebufferManager, ManagedBuffer, Synchronization, UsageFlags, Vertex,
 };
 use watertender::*;
 
@@ -11,7 +11,7 @@ struct App {
     framebuffer: FramebufferManager,
     sync: Synchronization,
     render_pass: vk::RenderPass,
-    vertex_buffer: MemObject<vk::Buffer>,
+    vertex_buffer: ManagedBuffer,
     frame: usize,
     pipeline: vk::Pipeline,
     command_buffers: Vec<vk::CommandBuffer>,
@@ -51,8 +51,8 @@ impl MainLoop for App {
             .sharing_mode(vk::SharingMode::EXCLUSIVE)
             .size(std::mem::size_of_val(vertices.as_slice()) as u64);
 
-        let mut vertex_buffer = MemObject::new_buffer(core, create_info, UsageFlags::UPLOAD)?;
-        vertex_buffer.write_bytes(core, 0, bytemuck::cast_slice(&vertices))?;
+        let mut vertex_buffer = ManagedBuffer::new(core.clone(), create_info, UsageFlags::UPLOAD)?;
+        vertex_buffer.write_bytes(0, bytemuck::cast_slice(&vertices))?;
 
         // Create descriptor layout
         let bindings = [
@@ -262,7 +262,6 @@ impl MainLoop for App {
     }
 
     fn swapchain_resize(&mut self, images: Vec<vk::Image>, extent: vk::Extent2D) -> Result<()> {
-        println!("################################################## RESIZE");
         self.framebuffer.resize(images, extent, self.render_pass)
     }
 
@@ -288,12 +287,5 @@ impl WinitMainLoop for App {
         self.sync
             .swapchain_sync(self.frame)
             .expect("khr_sync not set")
-    }
-}
-
-impl Drop for App {
-    fn drop(&mut self) {
-        // TODO: Make those objects auto-free...
-        //self.vertex_buffer.free(&self.core);
     }
 }
