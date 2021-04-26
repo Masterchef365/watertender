@@ -29,8 +29,14 @@ pub fn launch<M: MainLoop>(info: AppInfo) -> Result<()> {
     .expect("setting Ctrl-C handler");
 
     let (core, xr_core, frame_stream, mut frame_waiter) = build_cores(info)?;
-    let mut swapchain = Swapchain::new(core.clone(), xr_core.clone(), frame_stream)?;
-    let mut app = M::new(&core, Platform::OpenXr { xr_core: &xr_core, frame_state: None })?;
+    let mut swapchain = Swapchain::new(xr_core.clone(), frame_stream)?;
+    let mut app = M::new(
+        &core,
+        Platform::OpenXr {
+            xr_core: &xr_core,
+            frame_state: None,
+        },
+    )?;
 
     let mut event_storage = xr::EventDataBuffer::new();
     let mut session_running = false;
@@ -83,7 +89,10 @@ pub fn launch<M: MainLoop>(info: AppInfo) -> Result<()> {
             app.event(
                 PlatformEvent::OpenXr(&event),
                 &core,
-                Platform::OpenXr { xr_core: &xr_core, frame_state: None },
+                Platform::OpenXr {
+                    xr_core: &xr_core,
+                    frame_state: None,
+                },
             )?;
         }
 
@@ -96,7 +105,7 @@ pub fn launch<M: MainLoop>(info: AppInfo) -> Result<()> {
         // Get next frame
         let xr_frame_state = frame_waiter.wait()?; // TODO: Move this around for better latency?
 
-        let (swapchain_index, resize) = swapchain.next_frame(xr_frame_state)?;
+        let (swapchain_index, resize) = swapchain.frame(xr_frame_state)?;
         let swapchain_index = match swapchain_index {
             Some(i) => i,
             None => continue, // Don't draw
@@ -111,7 +120,10 @@ pub fn launch<M: MainLoop>(info: AppInfo) -> Result<()> {
         let ret = app.frame(
             crate::Frame { swapchain_index },
             &core,
-            Platform::OpenXr { xr_core: &xr_core, frame_state: Some(xr_frame_state) },
+            Platform::OpenXr {
+                xr_core: &xr_core,
+                frame_state: Some(xr_frame_state),
+            },
         )?;
         let views = match ret {
             PlatformReturn::OpenXr(v) => v,
@@ -193,7 +205,7 @@ fn build_cores(
     let engine_name = CString::new(crate::ENGINE_NAME)?;
     let app_info = vk::ApplicationInfoBuilder::new()
         .application_name(&application_name)
-        .application_version(vk::make_version(1, 0, 0))
+        .application_version(info.version)
         .engine_name(&engine_name)
         .engine_version(crate::engine_version())
         .api_version(info.api_version);
@@ -367,7 +379,6 @@ pub struct Swapchain {
     frame_stream: xr::FrameStream<xr::Vulkan>,
     swapchain: Option<xr::Swapchain<xr::Vulkan>>,
     xr_core: SharedXrCore,
-    core: SharedCore,
     current_extent: vk::Extent2D,
 }
 
@@ -375,19 +386,22 @@ type SwapchainImages = (Vec<vk::Image>, vk::Extent2D);
 
 impl Swapchain {
     /// Create a new engine instance. Returns the OpenXr caddy for use with input handling.
-    pub fn new(core: SharedCore, xr_core: SharedXrCore, frame_stream: xr::FrameStream<xr::Vulkan>) -> Result<Self> {
+    pub fn new(
+        xr_core: SharedXrCore,
+        frame_stream: xr::FrameStream<xr::Vulkan>,
+    ) -> Result<Self> {
         Ok(Self {
             swapchain: None,
             frame_stream,
             current_extent: vk::Extent2D::default(),
             xr_core,
-            core,
         })
     }
 
-    /// Render a frame of video.
-    /// Returns false when the loop should break
-    pub fn next_frame(&mut self, xr_frame_state: xr::FrameState) -> Result<(Option<u32>, Option<SwapchainImages>)> {
+    pub fn frame(
+        &mut self,
+        xr_frame_state: xr::FrameState,
+    ) -> Result<(Option<u32>, Option<SwapchainImages>)> {
         // Wait for OpenXR to signal it has a frame ready
         self.frame_stream.begin()?;
 
@@ -410,12 +424,16 @@ impl Swapchain {
 
         let image_index = swapchain.acquire_image()?;
 
-        swapchain.wait_image(xr::Duration::INFINITE)?; // TODO: This should perhaps go RIGHT BEFORE the submit!
+        swapchain.wait_image(xr::Duration::INFINITE)?; // TODO: This should probably go RIGHT BEFORE the submit!
 
         Ok((Some(image_index), resize))
     }
 
-    pub fn queue_present(&mut self, xr_frame_state: xr::FrameState, views: Vec<xr::View>) -> Result<()> {
+    pub fn queue_present(
+        &mut self,
+        xr_frame_state: xr::FrameState,
+        views: Vec<xr::View>,
+    ) -> Result<()> {
         let swapchain = self.swapchain.as_mut().unwrap();
 
         // Present to swapchain
