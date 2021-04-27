@@ -2,7 +2,7 @@
 use anyhow::Result;
 use shortcuts::{
     create_render_pass, shader, FramebufferManager, ManagedBuffer, Synchronization, UsageFlags,
-    Vertex,
+    Vertex, launch
 };
 use watertender::*;
 
@@ -21,11 +21,8 @@ struct App {
 
 fn main() -> Result<()> {
     let info = AppInfo::default().validation(true);
-    if std::env::args().count() > 1 {
-        openxr_backend::launch::<App>(info)
-    } else {
-        winit_backend::launch::<App>(info)
-    }
+    let vr = std::env::args().count() > 1;
+    launch::<App>(info, vr)
 }
 
 impl MainLoop for App {

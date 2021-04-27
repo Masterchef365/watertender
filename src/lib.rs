@@ -27,7 +27,7 @@ pub trait MainLoop: Sized {
     /// allocating memory.
     fn new(core: &SharedCore, platform: Platform<'_>) -> Result<Self>;
 
-    /// A frame handled by your app. The command buffers in `frame` are already reset and have begun, and will be ended and submitted.
+    /// A frame handled by your app.
     fn frame(&mut self, frame: Frame, core: &SharedCore, platform: Platform<'_>) -> Result<PlatformReturn>;
 
     /// Renderpass used to output to the framebuffer provided in Frame
@@ -126,8 +126,11 @@ impl Platform<'_> {
 /// If you need a different swapchain format, modify the source or get a different engine. I draw
 /// the line at color format for presentation, sorry.
 pub const COLOR_FORMAT: vk::Format = vk::Format::B8G8R8A8_SRGB;
+/// Used in shortcuts, to make things easier
 pub const COLOR_SPACE: ColorSpaceKHR = ColorSpaceKHR::SRGB_NONLINEAR_KHR;
+/// Used in shortcuts, to make things easier
 pub const DEPTH_FORMAT: vk::Format = vk::Format::D32_SFLOAT;
+/// Go figure
 pub const ENGINE_NAME: &str = "WaterTender";
 
 /// Application info
