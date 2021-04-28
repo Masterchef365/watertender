@@ -333,6 +333,7 @@ fn build_cores(
         gpu_alloc::Config::i_am_prototyping(),
         device_props,
     ));
+    let device_properties = unsafe { vk_instance.get_physical_device_properties(vk_physical_device, None) };
 
     // OpenXR session
     let (session, frame_wait, frame_stream) = unsafe {
@@ -360,6 +361,7 @@ fn build_cores(
         allocator,
         device: vk_device,
         physical_device: vk_physical_device,
+        device_properties,
         instance: vk_instance,
         entry: vk_entry,
     });

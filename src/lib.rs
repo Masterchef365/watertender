@@ -79,6 +79,9 @@ pub struct Core {
     /// Vulkan physical device
     pub physical_device: vk::PhysicalDevice,
 
+    /// Information about the device
+    pub device_properties: vk::PhysicalDeviceProperties,
+
     /// Vulkan instance
     pub instance: InstanceLoader,
 

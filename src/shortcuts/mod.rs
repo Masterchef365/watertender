@@ -13,6 +13,14 @@ pub use vertex::Vertex;
 mod shader;
 pub use shader::shader;
 
+//#[cfg(feature = "nalgebra")]
+//mod arcball;
+//pub use arcball::ArcBall;
+//#[cfg(all(feature = "nalgebra", feature = "openxr"))]
+//mod xr_camera;
+//#[cfg(feature = "nalgebra")]
+//mod camera;
+
 /// Launch a mainloop, and change platform depending on a boolean
 #[cfg(all(feature = "winit", feature = "openxr"))]
 pub fn launch<M: crate::SyncMainLoop + 'static>(

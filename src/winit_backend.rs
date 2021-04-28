@@ -161,9 +161,11 @@ pub fn build_core(info: AppInfo, window: &Window) -> Result<(Core, SurfaceKHR, P
         gpu_alloc::Config::i_am_prototyping(), // TODO: SET THIS TO SOMETHING MORE SANE!! Maybe embed in AppInfo?!
         device_props,
     ));
+    let device_properties = unsafe { instance.get_physical_device_properties(hardware.physical_device, None) };
 
     let core = Core {
         physical_device: hardware.physical_device,
+        device_properties,
         queue_family: hardware.queue_family,
         queue,
         device,
