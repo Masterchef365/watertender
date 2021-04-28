@@ -62,6 +62,9 @@ fn begin_loop<M: SyncMainLoop + 'static>(
         res(Swapchain::new(core.clone(), surface, present_mode));
     res(app.swapchain_resize(images, extent));
 
+    // TODO: FPS detection!
+    let mut target_time = crate::target_time::TargetTime::new(60); 
+
     event_loop.run(move |event, _, control_flow| {
         res(app.event(
             PlatformEvent::Winit(&event),
@@ -83,6 +86,7 @@ fn begin_loop<M: SyncMainLoop + 'static>(
                 if let Some((images, extent)) = resize {
                     res(app.swapchain_resize(images, extent));
                 }
+                target_time.start_frame();
                 res(app.frame(
                     frame,
                     &core,
@@ -92,6 +96,7 @@ fn begin_loop<M: SyncMainLoop + 'static>(
                     },
                 ));
                 res(swapchain.queue_present(swapchain_index, render_finished));
+                target_time.end_frame();
             }
             _ => (),
         }
