@@ -12,6 +12,11 @@ mod vertex;
 pub use vertex::Vertex;
 mod shader;
 pub use shader::shader;
+pub mod mesh;
+mod staging_buffer;
+pub use staging_buffer::StagingBuffer;
+mod multi_platform_camera;
+pub use multi_platform_camera::MultiPlatformCamera;
 
 //#[cfg(feature = "nalgebra")]
 //mod arcball;

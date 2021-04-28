@@ -1,43 +1,19 @@
 #![allow(unused)]
 use anyhow::Result;
 use shortcuts::{
-    create_render_pass, shader, FramebufferManager, ManagedBuffer, Synchronization, UsageFlags,
-    Vertex, launch
+    create_render_pass, shader, FramebufferManager, ManagedBuffer, Synchronization, UsageFlags, StagingBuffer, MultiPlatformCamera,
+    Vertex, launch, mesh::*
 };
+
 use watertender::*;
 
 const FRAMES_IN_FLIGHT: usize = 2;
-
-pub struct ManagedMesh {
-    vertices: ManagedBuffer,
-    indices: ManagedBuffer,
-    n_indices: u32,
-}
-
-fn draw_meshes(core: &Core, command_buffer: vk::CommandBuffer, meshes: &[ManagedMesh]) {
-    for mesh in meshes {
-        unsafe {
-            core.device.cmd_bind_vertex_buffers(
-                command_buffer,
-                0,
-                &[mesh.vertices.instance()],
-                &[0],
-            );
-            core.device.cmd_bind_index_buffer(
-                command_buffer,
-                mesh.indices.instance(),
-                0,
-                vk::IndexType::UINT32,
-            );
-            core.device.cmd_draw_indexed(command_buffer, mesh.n_indices, 1, 0, 0, 0);
-        }
-    }
-}
 
 struct App {
     // For just this scene
     rainbow_cube: ManagedMesh,
     pipeline: vk::Pipeline,
+    //scene_ubo: ManagedBuffer,
 
     // Kinda in-between. Goes with the camera.
     //scene_descriptor_sets: Vec<vk::DescriptorSet>,
@@ -47,7 +23,6 @@ struct App {
     sync: Synchronization,
     render_pass: vk::RenderPass,
     staging_buffer: StagingBuffer,
-    scene_ubo: ManagedBuffer,
     command_buffers: Vec<vk::CommandBuffer>,
     camera: MultiPlatformCamera,
     frame: usize,
@@ -78,15 +53,10 @@ impl MainLoop for App {
         let framebuffer = FramebufferManager::new(core.clone(), platform.is_vr());
         let render_pass = create_render_pass(&core, platform.is_vr())?;
 
-        // Mesh uploads
-        let mut staging_buffer = StagingBuffer::new(core.clone());
-        let (vertices, indices) = rainbow_cube();
-        let rainbow_cube = upload_mesh(&mut staging_buffer, &vertices, &indices)?;
-
         // Camera
-        let camera = MultiPlatformCamera::new(platform)?;
+        let camera = MultiPlatformCamera::new(platform);
 
-        let scene_ubo = todo!();
+        //let scene_ubo = todo!();
                 
         let bindings = [
             /*vk::DescriptorSetLayoutBindingBuilder::new()
@@ -176,9 +146,14 @@ impl MainLoop for App {
         let command_buffers =
             unsafe { core.device.allocate_command_buffers(&allocate_info) }.result()?;
 
+        // Mesh uploads
+        let mut staging_buffer = StagingBuffer::new(core.clone())?;
+        let (vertices, indices) = rainbow_cube();
+        let rainbow_cube = upload_mesh(&mut staging_buffer, command_buffers[0], &vertices, &indices)?;
+
         Ok(Self {
             rainbow_cube,
-            scene_ubo,
+            //scene_ubo,
             staging_buffer,
             sync,
             command_buffers,
@@ -272,8 +247,8 @@ impl MainLoop for App {
             core.device.end_command_buffer(command_buffer).result()?;
         }
 
-        let (ret, camera_view) = self.camera.get_matrices(platform);
-        dbg!(camera_view);
+        //let (ret, camera_view) = self.camera.get_matrices(platform);
+        //dbg!(camera_view);
 
         let command_buffers = [command_buffer];
         let submit_info = if let Some((image_available, render_finished)) =
@@ -302,6 +277,23 @@ impl MainLoop for App {
 
         self.frame = (self.frame + 1) % FRAMES_IN_FLIGHT;
 
+        let ret = match platform {
+            Platform::Winit { .. } => PlatformReturn::Winit,
+            Platform::OpenXr {
+                xr_core,
+                frame_state,
+            } => {
+                let (_, views) = xr_core.session.locate_views(
+                    openxr::ViewConfigurationType::PRIMARY_STEREO,
+                    frame_state.expect("No frame state").predicted_display_time,
+                    &xr_core.stage,
+                )?;
+                PlatformReturn::OpenXr(views)
+            }
+        };
+
+
+
         Ok(ret)
     }
 
@@ -311,10 +303,11 @@ impl MainLoop for App {
 
     fn event(
         &mut self,
-        event: PlatformEvent<'_, '_>,
+        mut event: PlatformEvent<'_, '_>,
         core: &Core,
-        platform: Platform<'_>,
+        mut platform: Platform<'_>,
     ) -> Result<()> {
+        self.camera.handle_event(&mut event, &mut platform);
         if let PlatformEvent::Winit(winit::event::Event::WindowEvent { event, .. }) = event {
             if let winit::event::WindowEvent::CloseRequested = event {
                 if let Platform::Winit { control_flow, .. } = platform {
@@ -322,7 +315,6 @@ impl MainLoop for App {
                 }
             }
         }
-        self.camera.handle_event(event, platform);
         Ok(())
     }
 }
@@ -336,6 +328,7 @@ impl SyncMainLoop for App {
 }
 
 fn rainbow_cube() -> (Vec<Vertex>, Vec<u32>) {
+    /*
     let vertices = vec![
         Vertex::new([-1.0, -1.0, -1.0], [0.0, 1.0, 1.0]),
         Vertex::new([1.0, -1.0, -1.0], [1.0, 0.0, 1.0]),
@@ -351,6 +344,18 @@ fn rainbow_cube() -> (Vec<Vertex>, Vec<u32>) {
         3, 1, 0, 2, 1, 3, 2, 5, 1, 6, 5, 2, 6, 4, 5, 7, 4, 6, 7, 0, 4, 3, 0, 7, 7, 2, 3, 6, 2, 7,
         0, 5, 4, 1, 5, 0,
     ];
+    */
+
+    // Vertex buffer
+    let vertices = vec![
+        Vertex::new([-0.5, 0.5, 0.], [1., 0., 0.]),
+        Vertex::new([0.5, 0.5, 0.], [0., 1., 0.]),
+        Vertex::new([0.0, -1.0, 0.], [0., 0., 1.]),
+    ];
+
+    let indices = vec![0, 1, 2];
+
+
 
     (vertices, indices)
 }
