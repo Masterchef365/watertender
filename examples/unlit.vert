@@ -4,12 +4,12 @@
 #extension GL_EXT_multiview : require
 
 layout(binding = 0) uniform Animation {
+    mat4 camera[2];
     float anim;
 };
 
 /*
 layout(binding = 0) uniform CameraUbo {
-    mat4 camera[2];
 };
 
 layout(push_constant) uniform Model {
@@ -24,9 +24,7 @@ layout(location = 0) out vec3 fragColor;
 
 void main() {
     //gl_Position = camera[gl_ViewIndex] * model * vec4(inPosition, 1.0);
-    vec3 pos = inPosition;
-    pos.x += cos(anim) * 0.1;
-    gl_Position = vec4(pos, 1.0);
+    gl_Position = camera[gl_ViewIndex] * vec4(inPosition, 1.0);
     fragColor = inColor;
 }
 

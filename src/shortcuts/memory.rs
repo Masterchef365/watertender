@@ -7,7 +7,7 @@ use gpu_alloc_erupt::EruptMemoryDevice as EMD;
 /// Block of allocated device memory
 pub type MemoryBlock = gpu_alloc::MemoryBlock<vk::DeviceMemory>;
 
-// TODO: Turn this into CoreMemoryExt?
+// TODO: Turn this into a trait such as CoreMemoryExt? It's even got a cool name...
 impl Core {
     /// Allocate using a gpu-alloc request
     pub fn allocate(&self, request: Request) -> Result<MemoryBlock> {

@@ -15,18 +15,23 @@ pub use shader::shader;
 pub mod mesh;
 mod staging_buffer;
 pub use staging_buffer::StagingBuffer;
-mod multi_platform_camera;
-pub use multi_platform_camera::MultiPlatformCamera;
 mod frame_data_ubo;
 pub use frame_data_ubo::FrameDataUbo;
 
-//#[cfg(feature = "nalgebra")]
-//mod arcball;
-//pub use arcball::ArcBall;
-//#[cfg(all(feature = "nalgebra", feature = "openxr"))]
-//mod xr_camera;
-//#[cfg(feature = "nalgebra")]
-//mod camera;
+#[cfg(feature = "nalgebra")]
+pub mod arcball;
+
+#[cfg(all(feature = "nalgebra", feature = "winit"))]
+pub mod winit_arcball;
+
+#[cfg(all(feature = "nalgebra", feature = "openxr"))]
+pub mod xr_camera;
+
+#[cfg(all(feature = "nalgebra", feature = "openxr", feature = "winit"))]
+mod multi_platform_camera;
+#[cfg(all(feature = "nalgebra", feature = "openxr", feature = "winit"))]
+pub use multi_platform_camera::MultiPlatformCamera;
+
 
 /// Launch a mainloop, and change platform depending on a boolean
 #[cfg(all(feature = "winit", feature = "openxr"))]

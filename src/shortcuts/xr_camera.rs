@@ -1,23 +1,12 @@
 use nalgebra::{Quaternion, Unit, Vector3, Matrix4};
 use openxr as xr;
 
-#[cfg(feature = "openxr")]
-impl Camera for openxr::View {
-    fn projection(&self, conf: ProjectionSettings) -> Matrix4<f32> {
-        xr_camera::projection_from_fov(&self.fov, conf.near, conf.far)
-    }
-
-    fn view(&self) -> Matrix4<f32> {
-        xr_camera::view_from_pose(&self.pose)
-    }
-}
-
 /// Create a view matrix for the given pose
 /// Ported from:
 /// https://gitlab.freedesktop.org/monado/demos/xrgears/-/blob/master/src/main.cpp
 pub fn view_from_pose(pose: &xr::Posef) -> Matrix4<f32> {
     let quat = pose.orientation;
-    let quat = nalgebra::Quaternion::new(quat.w, quat.x, quat.y, quat.z);
+    let quat = Quaternion::new(quat.w, quat.x, quat.y, quat.z);
     let quat = Unit::try_new(quat, 0.0).expect("Not a unit quaternion");
     let rotation = quat.to_homogeneous();
 

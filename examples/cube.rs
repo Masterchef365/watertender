@@ -36,7 +36,7 @@ fn main() -> Result<()> {
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
 struct SceneData {
-    //cameras: [f32; 4*4*2],
+    cameras: [f32; 4*4*2],
     anim: f32,
 }
 
@@ -233,11 +233,11 @@ impl MainLoop for App {
             core.device.end_command_buffer(command_buffer).result()?;
         }
 
-        //let (ret, camera_view) = self.camera.get_matrices(platform);
-        //dbg!(camera_view);
+        let (ret, cameras) = self.camera.get_matrices(platform);
 
         // TODO: For cameras, put this JUST before the submit?
         self.scene_ubo.upload(self.frame, &SceneData {
+            cameras,
             anim: self.anim,
         });
 
@@ -268,21 +268,6 @@ impl MainLoop for App {
 
         self.frame = (self.frame + 1) % FRAMES_IN_FLIGHT;
         self.anim += 0.01;
-
-        let ret = match platform {
-            Platform::Winit { .. } => PlatformReturn::Winit,
-            Platform::OpenXr {
-                xr_core,
-                frame_state,
-            } => {
-                let (_, views) = xr_core.session.locate_views(
-                    openxr::ViewConfigurationType::PRIMARY_STEREO,
-                    frame_state.expect("No frame state").predicted_display_time,
-                    &xr_core.stage,
-                )?;
-                PlatformReturn::OpenXr(views)
-            }
-        };
 
         Ok(ret)
     }
