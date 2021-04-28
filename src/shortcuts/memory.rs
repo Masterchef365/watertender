@@ -162,6 +162,7 @@ impl Drop for ManagedImage {
 impl Drop for ManagedBuffer {
     fn drop(&mut self) {
         unsafe {
+            self.core.device.queue_wait_idle(self.core.queue).unwrap(); // TODO: Drop without queue wait?
             self.core.device.destroy_buffer(Some(self.instance), None);
             self.core.deallocate(self.memory.take().expect("Double free of image memory")).unwrap();
         }
@@ -174,7 +175,7 @@ pub fn pad_uniform_buffer_size(device_properties: vk::PhysicalDeviceProperties, 
     pad_size(min_align, size)
 }
 
-pub fn pad_size(min_align: u64, mut size: u64) -> u64 {
+pub fn pad_size(min_align: u64, size: u64) -> u64 {
 	if min_align > 0 {
 		(size + min_align - 1) & !(min_align - 1)
 	} else {
