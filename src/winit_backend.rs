@@ -1,5 +1,5 @@
 use crate::hardware_query::HardwareSelection;
-use crate::{AppInfo, Core, Frame, Platform, PlatformEvent, SharedCore, WinitMainLoop};
+use crate::{AppInfo, Core, Frame, Platform, PlatformEvent, SharedCore, SyncMainLoop};
 use anyhow::{Context, Result};
 use erupt::{
     cstr,
@@ -19,7 +19,7 @@ use winit::{
     window::{Window, WindowBuilder},
 };
 
-pub fn launch<M: WinitMainLoop + 'static>(info: AppInfo) -> Result<()> {
+pub fn launch<M: SyncMainLoop + 'static>(info: AppInfo) -> Result<()> {
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
         .with_title(&info.name)
@@ -41,7 +41,7 @@ fn res<T>(r: Result<T>) -> T {
     }
 }
 
-fn begin_loop<M: WinitMainLoop + 'static>(
+fn begin_loop<M: SyncMainLoop + 'static>(
     core: Core,
     event_loop: EventLoop<()>,
     window: Window,

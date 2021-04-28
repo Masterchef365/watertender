@@ -306,7 +306,7 @@ impl MainLoop for App {
     }
 }
 
-impl WinitMainLoop for App {
+impl SyncMainLoop for App {
     fn winit_sync(&self) -> (vk::Semaphore, vk::Semaphore) {
         self.sync
             .swapchain_sync(self.frame)

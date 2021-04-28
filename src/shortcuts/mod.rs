@@ -15,7 +15,7 @@ pub use shader::shader;
 
 /// Launch a mainloop, and change platform depending on a boolean
 #[cfg(all(feature = "winit", feature = "openxr"))]
-pub fn launch<M: crate::WinitMainLoop + 'static>(
+pub fn launch<M: crate::SyncMainLoop + 'static>(
     info: crate::AppInfo,
     vr: bool,
 ) -> anyhow::Result<()> {

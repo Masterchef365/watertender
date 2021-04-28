@@ -17,6 +17,9 @@ pub mod winit_backend;
 #[cfg(feature = "winit")]
 pub use winit;
 
+#[cfg(feature = "nalgebra")]
+pub use nalgebra;
+
 mod alloc_helpers;
 mod hardware_query;
 pub mod shortcuts;
@@ -42,8 +45,8 @@ pub trait MainLoop: Sized {
     ) -> Result<()>;
 }
 
-/// Trait required by the winit backend
-pub trait WinitMainLoop: MainLoop {
+/// Trait required by the winit backend to synchronize with the swapchain
+pub trait SyncMainLoop: MainLoop {
     /// Return (image_available, render_finished). The first semaphore will be signalled by the runtime when the frame is available, and the runtime will wait to present the image until the second semaphore has been signalled.
     /// Therefore you will want to wait on the first semaphore to begin rendering, and signal the second semaphore when you are finished.
     /// This method will be called once before each `frame()`.

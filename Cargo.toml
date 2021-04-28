@@ -5,7 +5,7 @@ authors = ["Masterchef365 <duncan.freeman1@gmail.com>"]
 edition = "2018"
 
 [features]
-default = ["winit", "openxr"]
+default = ["winit", "openxr", "nalgebra"]
 
 [dependencies]
 anyhow = "1"
@@ -16,5 +16,6 @@ gpu-alloc-erupt = { git = "https://github.com/Friz64/gpu-alloc.git", branch = "e
 gpu-alloc = { git = "https://github.com/Friz64/gpu-alloc.git", branch = "erupt-update-18" }
 bytemuck = "1.5"
 ctrlc = "3.1"
+nalgebra = { version = "0.26", optional = true }
 #gpu-alloc-erupt = "0.3"
 #gpu-alloc = "0.3"
