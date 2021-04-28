@@ -1,7 +1,7 @@
 #![allow(unused)]
 use anyhow::Result;
 use shortcuts::{
-    create_render_pass, shader, FramebufferManager, ManagedBuffer, Synchronization, UsageFlags, StagingBuffer, MultiPlatformCamera,
+    create_render_pass, shader, FramebufferManager, ManagedBuffer, Synchronization, UsageFlags, StagingBuffer, MultiPlatformCamera, FrameDataUbo,
     Vertex, launch, mesh::*
 };
 
@@ -13,10 +13,9 @@ struct App {
     // For just this scene
     rainbow_cube: ManagedMesh,
     pipeline: vk::Pipeline,
-    //scene_ubo: ManagedBuffer,
-
-    // Kinda in-between. Goes with the camera.
-    //scene_descriptor_sets: Vec<vk::DescriptorSet>,
+    pipeline_layout: vk::PipelineLayout,
+    scene_ubo: FrameDataUbo<SceneData>,
+    anim: f32,
 
     // Basically internals
     framebuffer: FramebufferManager,
@@ -35,10 +34,14 @@ fn main() -> Result<()> {
 }
 
 #[repr(C)]
+#[derive(Copy, Clone, Debug)]
 struct SceneData {
-    cameras: [f32; 4*4*2],
+    //cameras: [f32; 4*4*2],
     anim: f32,
 }
+
+unsafe impl bytemuck::Zeroable for SceneData {}
+unsafe impl bytemuck::Pod for SceneData {}
 
 impl MainLoop for App {
     fn new(core: &SharedCore, platform: Platform<'_>) -> Result<Self> {
@@ -56,19 +59,14 @@ impl MainLoop for App {
         // Camera
         let camera = MultiPlatformCamera::new(platform);
 
-        //let scene_ubo = todo!();
-                
+        let scene_ubo = FrameDataUbo::new(core.clone(), FRAMES_IN_FLIGHT)?;
+
         let bindings = [
-            /*vk::DescriptorSetLayoutBindingBuilder::new()
+            vk::DescriptorSetLayoutBindingBuilder::new()
                 .binding(0)
                 .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
                 .descriptor_count(1)
-                .stage_flags(vk::ShaderStageFlags::VERTEX),
-            vk::DescriptorSetLayoutBindingBuilder::new()
-                .binding(1)
-                .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
-                .descriptor_count(1)
-                .stage_flags(vk::ShaderStageFlags::VERTEX | vk::ShaderStageFlags::FRAGMENT),*/
+                .stage_flags(vk::ShaderStageFlags::VERTEX | vk::ShaderStageFlags::FRAGMENT),
         ];
 
         let descriptor_set_layout_ci =
@@ -82,36 +80,11 @@ impl MainLoop for App {
 
         let descriptor_set_layouts = [descriptor_set_layout];
 
-        // Create descriptor pool
-        /*
-        let pool_sizes = [vk::DescriptorPoolSizeBuilder::new()
-            ._type(vk::DescriptorType::UNIFORM_BUFFER)
-            .descriptor_count((FRAMES_IN_FLIGHT * 2) as u32)];
-        let create_info = vk::DescriptorPoolCreateInfoBuilder::new()
-            .pool_sizes(&pool_sizes)
-            .max_sets(FRAMES_IN_FLIGHT as u32);
-        let descriptor_pool = unsafe {
-            core
-                .device
-                .create_descriptor_pool(&create_info, None, None)
-        }
-        .result()?;
-
-        // Create descriptor sets
-        let layouts = vec![descriptor_set_layout; FRAMES_IN_FLIGHT];
-        let create_info = vk::DescriptorSetAllocateInfoBuilder::new()
-            .descriptor_pool(descriptor_pool)
-            .set_layouts(&layouts);
-
-        let descriptor_sets =
-            unsafe { core.device.allocate_descriptor_sets(&create_info) }.result()?;
-        */
-
         // Pipeline layout
         let push_constant_ranges = [vk::PushConstantRangeBuilder::new()
             .stage_flags(vk::ShaderStageFlags::VERTEX)
             .offset(0)
-            .size(std::mem::size_of::<[f32; 16]>() as u32)];
+            .size(std::mem::size_of::<[f32; 4*4]>() as u32)];
 
         let create_info = vk::PipelineLayoutCreateInfoBuilder::new()
             .push_constant_ranges(&push_constant_ranges)
@@ -152,8 +125,10 @@ impl MainLoop for App {
         let rainbow_cube = upload_mesh(&mut staging_buffer, command_buffers[0], &vertices, &indices)?;
 
         Ok(Self {
+            anim: 0.0,
+            pipeline_layout,
+            scene_ubo,
             rainbow_cube,
-            //scene_ubo,
             staging_buffer,
             sync,
             command_buffers,
@@ -232,6 +207,15 @@ impl MainLoop for App {
 
             core.device.cmd_set_scissor(command_buffer, 0, &scissors);
 
+            core.device.cmd_bind_descriptor_sets(
+                command_buffer,
+                vk::PipelineBindPoint::GRAPHICS,
+                self.pipeline_layout,
+                0,
+                &[self.scene_ubo.descriptor_set(self.frame)],
+                &[],
+            );
+
             // Draw cmds
             core.device.cmd_bind_pipeline(
                 command_buffer,
@@ -249,6 +233,11 @@ impl MainLoop for App {
 
         //let (ret, camera_view) = self.camera.get_matrices(platform);
         //dbg!(camera_view);
+
+        // TODO: For cameras, put this JUST before the submit?
+        self.scene_ubo.upload(self.frame, &SceneData {
+            anim: self.anim,
+        });
 
         let command_buffers = [command_buffer];
         let submit_info = if let Some((image_available, render_finished)) =
@@ -276,6 +265,7 @@ impl MainLoop for App {
         };
 
         self.frame = (self.frame + 1) % FRAMES_IN_FLIGHT;
+        self.anim += 0.01;
 
         let ret = match platform {
             Platform::Winit { .. } => PlatformReturn::Winit,
@@ -291,8 +281,6 @@ impl MainLoop for App {
                 PlatformReturn::OpenXr(views)
             }
         };
-
-
 
         Ok(ret)
     }

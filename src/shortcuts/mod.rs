@@ -17,6 +17,8 @@ mod staging_buffer;
 pub use staging_buffer::StagingBuffer;
 mod multi_platform_camera;
 pub use multi_platform_camera::MultiPlatformCamera;
+mod frame_data_ubo;
+pub use frame_data_ubo::FrameDataUbo;
 
 //#[cfg(feature = "nalgebra")]
 //mod arcball;
