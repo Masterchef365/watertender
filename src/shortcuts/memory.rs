@@ -167,3 +167,17 @@ impl Drop for ManagedBuffer {
         }
     }
 }
+
+// Credit: https://github.com/SaschaWillems/Vulkan/tree/master/examples/dynamicuniformbuffer
+pub fn pad_uniform_buffer_size(device_properties: vk::PhysicalDeviceProperties, size: u64) -> u64 {
+	let min_align = device_properties.limits.min_uniform_buffer_offset_alignment;
+    pad_size(min_align, size)
+}
+
+pub fn pad_size(min_align: u64, mut size: u64) -> u64 {
+	if min_align > 0 {
+		(size + min_align - 1) & !(min_align - 1)
+	} else {
+        size
+    }
+}

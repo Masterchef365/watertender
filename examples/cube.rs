@@ -59,11 +59,10 @@ impl MainLoop for App {
         // Camera
         let camera = MultiPlatformCamera::new(platform);
 
-        let scene_ubo = FrameDataUbo::new(core.clone(), FRAMES_IN_FLIGHT)?;
-
+        const SCENE_DATA_BINDING: u32 = 0;
         let bindings = [
             vk::DescriptorSetLayoutBindingBuilder::new()
-                .binding(0)
+                .binding(SCENE_DATA_BINDING)
                 .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
                 .descriptor_count(1)
                 .stage_flags(vk::ShaderStageFlags::VERTEX | vk::ShaderStageFlags::FRAGMENT),
@@ -77,6 +76,9 @@ impl MainLoop for App {
                 .create_descriptor_set_layout(&descriptor_set_layout_ci, None, None)
         }
         .result()?;
+
+        // Scene data
+        let scene_ubo = FrameDataUbo::new(core.clone(), FRAMES_IN_FLIGHT, descriptor_set_layout, SCENE_DATA_BINDING)?;
 
         let descriptor_set_layouts = [descriptor_set_layout];
 
