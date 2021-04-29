@@ -1,5 +1,7 @@
 use crate::shortcuts::winit_arcball::WinitArcBall;
+use crate::shortcuts::xr_camera;
 use crate::{Platform, PlatformEvent, PlatformReturn};
+use anyhow::Result;
 
 pub enum MultiPlatformCamera {
     Winit(WinitArcBall),
@@ -14,7 +16,7 @@ impl MultiPlatformCamera {
         }
     }
 
-    pub fn get_matrices(&self, platform: Platform) -> (PlatformReturn, [f32; 4 * 4 * 2]) {
+    pub fn get_matrices(&self, platform: Platform) -> Result<(PlatformReturn, [f32; 4 * 4 * 2])> {
         match (self, platform) {
             (Self::Winit(winit_arcball), Platform::Winit { .. }) => {
                 let matrix = winit_arcball.matrix();
@@ -22,10 +24,32 @@ impl MultiPlatformCamera {
                 data.iter_mut()
                     .zip(matrix.as_slice().iter())
                     .for_each(|(o, i)| *o = *i);
-                (PlatformReturn::Winit, data)
+                Ok((PlatformReturn::Winit, data))
             }
-            (Self::OpenXr, Platform::OpenXr { .. }) => {
-                todo!()
+            (
+                Self::OpenXr,
+                Platform::OpenXr {
+                    xr_core,
+                    frame_state,
+                },
+            ) => {
+                let (_, views) = xr_core.session.locate_views(
+                    openxr::ViewConfigurationType::PRIMARY_STEREO,
+                    frame_state.expect("No frame state").predicted_display_time,
+                    &xr_core.stage,
+                )?;
+                let view_to_mat = |view: openxr::View| {
+                    let proj = xr_camera::projection_from_fov(&view.fov, 0.01, 1000.0); // TODO: Settings?
+                    let view = xr_camera::view_from_pose(&view.pose);
+                    proj * view
+                };
+                let left = view_to_mat(views[0]);
+                let right = view_to_mat(views[1]);
+                let mut data = [0.0; 32];
+                data.iter_mut()
+                    .zip(left.as_slice().iter().chain(right.as_slice().iter()))
+                    .for_each(|(o, i)| *o = *i);
+                Ok((PlatformReturn::OpenXr(views), data))
             }
             _ => panic!("Invalid platform"),
         }

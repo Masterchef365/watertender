@@ -233,7 +233,7 @@ impl MainLoop for App {
             core.device.end_command_buffer(command_buffer).result()?;
         }
 
-        let (ret, cameras) = self.camera.get_matrices(platform);
+        let (ret, cameras) = self.camera.get_matrices(platform)?;
 
         // TODO: For cameras, put this JUST before the submit?
         self.scene_ubo.upload(self.frame, &SceneData {
@@ -302,8 +302,17 @@ impl SyncMainLoop for App {
     }
 }
 
+/*
+// Vertex buffer
+let vertices = vec![
+Vertex::new([-0.5, 0.5, 0.], [1., 0., 0.]),
+Vertex::new([0.5, 0.5, 0.], [0., 1., 0.]),
+Vertex::new([0.0, -1.0, 0.], [0., 0., 1.]),
+];
+
+let indices = vec![0, 1, 2];
+*/
 fn rainbow_cube() -> (Vec<Vertex>, Vec<u32>) {
-    /*
     let vertices = vec![
         Vertex::new([-1.0, -1.0, -1.0], [0.0, 1.0, 1.0]),
         Vertex::new([1.0, -1.0, -1.0], [1.0, 0.0, 1.0]),
@@ -319,18 +328,6 @@ fn rainbow_cube() -> (Vec<Vertex>, Vec<u32>) {
         3, 1, 0, 2, 1, 3, 2, 5, 1, 6, 5, 2, 6, 4, 5, 7, 4, 6, 7, 0, 4, 3, 0, 7, 7, 2, 3, 6, 2, 7,
         0, 5, 4, 1, 5, 0,
     ];
-    */
-
-    // Vertex buffer
-    let vertices = vec![
-        Vertex::new([-0.5, 0.5, 0.], [1., 0., 0.]),
-        Vertex::new([0.5, 0.5, 0.], [0., 1., 0.]),
-        Vertex::new([0.0, -1.0, 0.], [0., 0., 1.]),
-    ];
-
-    let indices = vec![0, 1, 2];
-
-
 
     (vertices, indices)
 }

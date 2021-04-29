@@ -18,12 +18,14 @@ impl ArcBall {
 
     /// Perspective matrix
     pub fn perspective(&self, width: u32, height: u32) -> Matrix4<f32> {
-        Matrix4::new_perspective(
+        let mut perspective = Matrix4::new_perspective(
             width as f32 / height as f32,
             self.fov,
             self.clipping.0,
             self.clipping.1,
-        )
+        );
+        perspective[(1, 1)] *= -1.;
+        perspective
     }
 
     /// View matrix

@@ -52,20 +52,6 @@ impl MainLoop for App {
         let mut vertex_buffer = ManagedBuffer::new(core.clone(), create_info, UsageFlags::UPLOAD)?;
         vertex_buffer.write_bytes(0, bytemuck::cast_slice(&vertices))?;
 
-        // Create descriptor layout
-        let bindings = [
-            /*vk::DescriptorSetLayoutBindingBuilder::new()
-                .binding(0)
-                .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
-                .descriptor_count(1)
-                .stage_flags(vk::ShaderStageFlags::VERTEX),
-            vk::DescriptorSetLayoutBindingBuilder::new()
-                .binding(1)
-                .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
-                .descriptor_count(1)
-                .stage_flags(vk::ShaderStageFlags::VERTEX | vk::ShaderStageFlags::FRAGMENT),*/
-        ];
-
         let descriptor_set_layout_ci =
             vk::DescriptorSetLayoutCreateInfoBuilder::new().bindings(&bindings);
 
@@ -76,31 +62,6 @@ impl MainLoop for App {
         .result()?;
 
         let descriptor_set_layouts = [descriptor_set_layout];
-
-        // Create descriptor pool
-        /*
-        let pool_sizes = [vk::DescriptorPoolSizeBuilder::new()
-            ._type(vk::DescriptorType::UNIFORM_BUFFER)
-            .descriptor_count((FRAMES_IN_FLIGHT * 2) as u32)];
-        let create_info = vk::DescriptorPoolCreateInfoBuilder::new()
-            .pool_sizes(&pool_sizes)
-            .max_sets(FRAMES_IN_FLIGHT as u32);
-        let descriptor_pool = unsafe {
-            core
-                .device
-                .create_descriptor_pool(&create_info, None, None)
-        }
-        .result()?;
-
-        // Create descriptor sets
-        let layouts = vec![descriptor_set_layout; FRAMES_IN_FLIGHT];
-        let create_info = vk::DescriptorSetAllocateInfoBuilder::new()
-            .descriptor_pool(descriptor_pool)
-            .set_layouts(&layouts);
-
-        let descriptor_sets =
-            unsafe { core.device.allocate_descriptor_sets(&create_info) }.result()?;
-        */
 
         // Pipeline layout
         let push_constant_ranges = [vk::PushConstantRangeBuilder::new()
