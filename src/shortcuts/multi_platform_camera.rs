@@ -11,7 +11,7 @@ pub enum MultiPlatformCamera {
 const PLATFORM_WARNING: &str = "Mutli platform camera was created a different platform than this call";
 
 impl MultiPlatformCamera {
-    pub fn new(platform: Platform<'_>) -> Self {
+    pub fn new(platform: &mut Platform<'_>) -> Self {
         match platform {
             Platform::OpenXr { .. } => Self::OpenXr,
             Platform::Winit { .. } => Self::Winit(WinitArcBall::default()),

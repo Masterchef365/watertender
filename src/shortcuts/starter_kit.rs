@@ -1,49 +1,41 @@
-use erupt::vk;
-use anyhow::Result;
 use crate::shortcuts::{
-    create_render_pass, shader, FramebufferManager, ManagedBuffer, Synchronization, UsageFlags, StagingBuffer, MultiPlatformCamera, FrameDataUbo,
-    Vertex, launch, mesh::*
+    create_render_pass, launch, FramebufferManager,
+    StagingBuffer, Synchronization
 };
-use crate::{SyncMainLoop, AppInfo};
+use crate::{AppInfo, Frame, Platform, SharedCore, SyncMainLoop, PlatformEvent};
+use anyhow::Result;
+use erupt::vk;
 
-const FRAMES_IN_FLIGHT: usize = 2;
+pub const FRAMES_IN_FLIGHT: usize = 2;
 
-struct StarterKit {
-    // For just this scene
-    rainbow_cube: ManagedMesh,
-    pipeline: vk::Pipeline,
-    pipeline_layout: vk::PipelineLayout,
-    scene_ubo: FrameDataUbo<SceneData>,
-    anim: f32,
-
-    // Basically internals
-    framebuffer: FramebufferManager,
-    sync: Synchronization,
-    render_pass: vk::RenderPass,
-    staging_buffer: StagingBuffer,
-    command_buffers: Vec<vk::CommandBuffer>,
-    camera: MultiPlatformCamera,
-    frame: usize,
+/// The StarterKit is a collection of commonly used utilities and code, and is made out of other shortcuts.
+pub struct StarterKit {
+    pub framebuffer: FramebufferManager,
+    pub sync: Synchronization,
+    pub render_pass: vk::RenderPass,
+    pub staging_buffer: StagingBuffer,
+    pub command_buffers: Vec<vk::CommandBuffer>,
+    pub core: SharedCore,
+    pub frame: usize,
 }
 
+/// Run the main loop with validation, and if any command 
+/// line args are specified, then run in VR mode 
 pub fn debug<App: SyncMainLoop + 'static>() -> Result<()> {
     let info = AppInfo::default().validation(true);
     let vr = std::env::args().count() > 1;
     launch::<App>(info, vr)
 }
 
-#[repr(C)]
-#[derive(Copy, Clone, Debug)]
-struct SceneData {
-    cameras: [f32; 4*4*2],
-    anim: f32,
+/// Constructed by the starter kit; typically just used for it's command buffer and to pass to the
+/// `end_command_buffer()` function.
+pub struct CommandBufferStart {
+    pub command_buffer: vk::CommandBuffer,
+    fence: vk::Fence,
 }
 
-unsafe impl bytemuck::Zeroable for SceneData {}
-unsafe impl bytemuck::Pod for SceneData {}
-
 impl StarterKit {
-    fn new(core: &SharedCore, platform: Platform<'_>) -> Result<Self> {
+    pub fn new(core: SharedCore, platform: &mut Platform<'_>) -> Result<Self> {
         // Frame-frame sync
         let sync = Synchronization::new(
             core.clone(),
@@ -54,55 +46,6 @@ impl StarterKit {
         // Freambuffer and render pass
         let framebuffer = FramebufferManager::new(core.clone(), platform.is_vr());
         let render_pass = create_render_pass(&core, platform.is_vr())?;
-
-        // Camera
-        let camera = MultiPlatformCamera::new(platform);
-
-        const SCENE_DATA_BINDING: u32 = 0;
-        let bindings = [
-            vk::DescriptorSetLayoutBindingBuilder::new()
-                .binding(SCENE_DATA_BINDING)
-                .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
-                .descriptor_count(1)
-                .stage_flags(vk::ShaderStageFlags::VERTEX | vk::ShaderStageFlags::FRAGMENT),
-        ];
-
-        let descriptor_set_layout_ci =
-            vk::DescriptorSetLayoutCreateInfoBuilder::new().bindings(&bindings);
-
-        let descriptor_set_layout = unsafe {
-            core.device
-                .create_descriptor_set_layout(&descriptor_set_layout_ci, None, None)
-        }
-        .result()?;
-
-        // Scene data
-        let scene_ubo = FrameDataUbo::new(core.clone(), FRAMES_IN_FLIGHT, descriptor_set_layout, SCENE_DATA_BINDING)?;
-
-        let descriptor_set_layouts = [descriptor_set_layout];
-
-        // Pipeline layout
-        let push_constant_ranges = [vk::PushConstantRangeBuilder::new()
-            .stage_flags(vk::ShaderStageFlags::VERTEX)
-            .offset(0)
-            .size(std::mem::size_of::<[f32; 4*4]>() as u32)];
-
-        let create_info = vk::PipelineLayoutCreateInfoBuilder::new()
-            .push_constant_ranges(&push_constant_ranges)
-            .set_layouts(&descriptor_set_layouts);
-
-        let pipeline_layout =
-            unsafe { core.device.create_pipeline_layout(&create_info, None, None) }.result()?;
-
-        // Pipeline
-        let pipeline = shader(
-            core,
-            include_bytes!("unlit.vert.spv"),
-            include_bytes!("unlit.frag.spv"),
-            vk::PrimitiveTopology::TRIANGLE_LIST,
-            render_pass,
-            pipeline_layout,
-        )?;
 
         // Command pool
         let create_info = vk::CommandPoolCreateInfoBuilder::new()
@@ -121,44 +64,35 @@ impl StarterKit {
             unsafe { core.device.allocate_command_buffers(&allocate_info) }.result()?;
 
         // Mesh uploads
-        let mut staging_buffer = StagingBuffer::new(core.clone())?;
-        let (vertices, indices) = rainbow_cube();
-        let rainbow_cube = upload_mesh(&mut staging_buffer, command_buffers[0], &vertices, &indices)?;
+        let staging_buffer = StagingBuffer::new(core.clone())?;
 
         Ok(Self {
-            anim: 0.0,
-            pipeline_layout,
-            scene_ubo,
-            rainbow_cube,
             staging_buffer,
             sync,
             command_buffers,
-            pipeline,
             framebuffer,
             render_pass,
-            camera,
             frame: 0,
+            core,
         })
     }
 
-    fn frame(
-        &mut self,
-        frame: Frame,
-        core: &SharedCore,
-        platform: Platform<'_>,
-    ) -> Result<PlatformReturn> {
+    /// Begins command buffer, render pass, and sets viewports
+    pub fn begin_command_buffer(&mut self, frame: Frame) -> Result<CommandBufferStart> {
         let fence = self.sync.sync(frame.swapchain_index, self.frame)?;
 
         let command_buffer = self.command_buffers[self.frame];
         let framebuffer = self.framebuffer.frame(frame.swapchain_index);
 
         unsafe {
-            core.device
+            self.core
+                .device
                 .reset_command_buffer(command_buffer, None)
                 .result()?;
 
             let begin_info = vk::CommandBufferBeginInfoBuilder::new();
-            core.device
+            self.core
+                .device
                 .begin_command_buffer(command_buffer, &begin_info)
                 .result()?;
 
@@ -186,7 +120,7 @@ impl StarterKit {
                 })
                 .clear_values(&clear_values);
 
-            core.device.cmd_begin_render_pass(
+            self.core.device.cmd_begin_render_pass(
                 command_buffer,
                 &begin_info,
                 vk::SubpassContents::INLINE,
@@ -204,44 +138,34 @@ impl StarterKit {
                 .offset(vk::Offset2D { x: 0, y: 0 })
                 .extent(self.framebuffer.extent())];
 
-            core.device.cmd_set_viewport(command_buffer, 0, &viewports);
+            self.core
+                .device
+                .cmd_set_viewport(command_buffer, 0, &viewports);
 
-            core.device.cmd_set_scissor(command_buffer, 0, &scissors);
-
-            core.device.cmd_bind_descriptor_sets(
-                command_buffer,
-                vk::PipelineBindPoint::GRAPHICS,
-                self.pipeline_layout,
-                0,
-                &[self.scene_ubo.descriptor_set(self.frame)],
-                &[],
-            );
-
-            // Draw cmds
-            core.device.cmd_bind_pipeline(
-                command_buffer,
-                vk::PipelineBindPoint::GRAPHICS,
-                self.pipeline,
-            );
-
-            draw_meshes(&core, command_buffer, std::slice::from_ref(&self.rainbow_cube));
-            // End draw cmds
-
-            core.device.cmd_end_render_pass(command_buffer);
-
-            core.device.end_command_buffer(command_buffer).result()?;
+            self.core
+                .device
+                .cmd_set_scissor(command_buffer, 0, &scissors);
         }
 
-        let (ret, cameras) = self.camera.get_matrices(platform)?;
+        Ok(CommandBufferStart {
+            command_buffer,
+            fence,
+        })
+    }
 
-        // TODO: For cameras, put this JUST before the submit?
-        self.scene_ubo.upload(self.frame, &SceneData {
-            cameras,
-            anim: self.anim,
-        });
+    /// End and submit command buffer, and advance to the next frame.
+    pub fn end_command_buffer(&mut self, cmd: CommandBufferStart) -> Result<()> {
+        let command_buffer = cmd.command_buffer;
+        unsafe {
+            self.core.device.cmd_end_render_pass(command_buffer);
+            self.core
+                .device
+                .end_command_buffer(command_buffer)
+                .result()?;
+        }
 
         let command_buffers = [command_buffer];
-        let submit_info = if let Some((image_available, render_finished)) =
+        if let Some((image_available, render_finished)) =
             self.sync.swapchain_sync(self.frame)
         {
             let wait_semaphores = [image_available];
@@ -252,81 +176,44 @@ impl StarterKit {
                 .command_buffers(&command_buffers)
                 .signal_semaphores(&signal_semaphores);
             unsafe {
-                core.device
-                    .queue_submit(core.queue, &[submit_info], Some(fence))
+                self.core
+                    .device
+                    .queue_submit(self.core.queue, &[submit_info], Some(cmd.fence))
                     .result()?;
             }
         } else {
             let submit_info = vk::SubmitInfoBuilder::new().command_buffers(&command_buffers);
             unsafe {
-                core.device
-                    .queue_submit(core.queue, &[submit_info], Some(fence))
+                self.core
+                    .device
+                    .queue_submit(self.core.queue, &[submit_info], Some(cmd.fence))
                     .result()?;
             }
         };
 
         self.frame = (self.frame + 1) % FRAMES_IN_FLIGHT;
-        self.anim += 0.01;
 
-        Ok(ret)
+        Ok(())
     }
 
-    fn swapchain_resize(&mut self, images: Vec<vk::Image>, extent: vk::Extent2D) -> Result<()> {
+    pub fn swapchain_resize(&mut self, images: Vec<vk::Image>, extent: vk::Extent2D) -> Result<()> {
         self.framebuffer.resize(images, extent, self.render_pass)
     }
 
-    fn event(
-        &mut self,
-        mut event: PlatformEvent<'_, '_>,
-        core: &Core,
-        mut platform: Platform<'_>,
-    ) -> Result<()> {
-        self.camera.handle_event(&mut event, &mut platform);
-        if let PlatformEvent::Winit(winit::event::Event::WindowEvent { event, .. }) = event {
-            if let winit::event::WindowEvent::CloseRequested = event {
-                if let Platform::Winit { control_flow, .. } = platform {
-                    *control_flow = winit::event_loop::ControlFlow::Exit;
-                }
-            }
-        }
-        Ok(())
-    }
-}
-
-impl SyncMainLoop for App {
-    fn winit_sync(&self) -> (vk::Semaphore, vk::Semaphore) {
+    pub fn winit_sync(&self) -> (vk::Semaphore, vk::Semaphore) {
         self.sync
             .swapchain_sync(self.frame)
             .expect("khr_sync not set")
     }
 }
 
-/*
-// Vertex buffer
-let vertices = vec![
-Vertex::new([-0.5, 0.5, 0.], [1., 0., 0.]),
-Vertex::new([0.5, 0.5, 0.], [0., 1., 0.]),
-Vertex::new([0.0, -1.0, 0.], [0., 0., 1.]),
-];
-
-let indices = vec![0, 1, 2];
-*/
-fn rainbow_cube() -> (Vec<Vertex>, Vec<u32>) {
-    let vertices = vec![
-        Vertex::new([-1.0, -1.0, -1.0], [0.0, 1.0, 1.0]),
-        Vertex::new([1.0, -1.0, -1.0], [1.0, 0.0, 1.0]),
-        Vertex::new([1.0, 1.0, -1.0], [1.0, 1.0, 0.0]),
-        Vertex::new([-1.0, 1.0, -1.0], [0.0, 1.0, 1.0]),
-        Vertex::new([-1.0, -1.0, 1.0], [1.0, 0.0, 1.0]),
-        Vertex::new([1.0, -1.0, 1.0], [1.0, 1.0, 0.0]),
-        Vertex::new([1.0, 1.0, 1.0], [0.0, 1.0, 1.0]),
-        Vertex::new([-1.0, 1.0, 1.0], [1.0, 0.0, 1.0]),
-    ];
-
-    let indices = vec![
-        3, 1, 0, 2, 1, 3, 2, 5, 1, 6, 5, 2, 6, 4, 5, 7, 4, 6, 7, 0, 4, 3, 0, 7, 7, 2, 3, 6, 2, 7,
-        0, 5, 4, 1, 5, 0,
-    ];
-
-    (vertices, indices)
+pub fn close_when_asked(event: PlatformEvent<'_, '_>, platform: Platform<'_>,
+) {
+    if let PlatformEvent::Winit(winit::event::Event::WindowEvent { event, .. }) = event {
+        if let winit::event::WindowEvent::CloseRequested = event {
+            if let Platform::Winit { control_flow, .. } = platform {
+                *control_flow = winit::event_loop::ControlFlow::Exit;
+            }
+        }
+    }
 }
