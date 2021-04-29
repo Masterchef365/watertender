@@ -1,7 +1,6 @@
-#![allow(unused)]
 use anyhow::Result;
 use shortcuts::{
-    create_render_pass, shader, FramebufferManager, ManagedBuffer, Synchronization, UsageFlags, StagingBuffer, MultiPlatformCamera, FrameDataUbo,
+    create_render_pass, shader, FramebufferManager, Synchronization, StagingBuffer, MultiPlatformCamera, FrameDataUbo,
     Vertex, launch, mesh::*
 };
 
@@ -21,7 +20,6 @@ struct App {
     framebuffer: FramebufferManager,
     sync: Synchronization,
     render_pass: vk::RenderPass,
-    staging_buffer: StagingBuffer,
     command_buffers: Vec<vk::CommandBuffer>,
     camera: MultiPlatformCamera,
     frame: usize,
@@ -44,7 +42,7 @@ unsafe impl bytemuck::Zeroable for SceneData {}
 unsafe impl bytemuck::Pod for SceneData {}
 
 impl MainLoop for App {
-    fn new(core: &SharedCore, platform: Platform<'_>) -> Result<Self> {
+    fn new(core: &SharedCore, mut platform: Platform<'_>) -> Result<Self> {
         // Frame-frame sync
         let sync = Synchronization::new(
             core.clone(),
@@ -57,7 +55,7 @@ impl MainLoop for App {
         let render_pass = create_render_pass(&core, platform.is_vr())?;
 
         // Camera
-        let camera = MultiPlatformCamera::new(platform);
+        let camera = MultiPlatformCamera::new(&mut platform);
 
         const SCENE_DATA_BINDING: u32 = 0;
         let bindings = [
@@ -131,7 +129,6 @@ impl MainLoop for App {
             pipeline_layout,
             scene_ubo,
             rainbow_cube,
-            staging_buffer,
             sync,
             command_buffers,
             pipeline,
@@ -239,10 +236,10 @@ impl MainLoop for App {
         self.scene_ubo.upload(self.frame, &SceneData {
             cameras,
             anim: self.anim,
-        });
+        })?;
 
         let command_buffers = [command_buffer];
-        let submit_info = if let Some((image_available, render_finished)) =
+        if let Some((image_available, render_finished)) =
             self.sync.swapchain_sync(self.frame)
         {
             let wait_semaphores = [image_available];
@@ -279,7 +276,7 @@ impl MainLoop for App {
     fn event(
         &mut self,
         mut event: PlatformEvent<'_, '_>,
-        core: &Core,
+        _core: &Core,
         mut platform: Platform<'_>,
     ) -> Result<()> {
         self.camera.handle_event(&mut event, &mut platform);
