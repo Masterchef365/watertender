@@ -8,6 +8,8 @@ pub enum MultiPlatformCamera {
     OpenXr,
 }
 
+const PLATFORM_WARNING: &str = "Mutli platform camera was created a different platform than this call";
+
 impl MultiPlatformCamera {
     pub fn new(platform: Platform<'_>) -> Self {
         match platform {
@@ -18,6 +20,7 @@ impl MultiPlatformCamera {
 
     pub fn get_matrices(&self, platform: Platform) -> Result<(PlatformReturn, [f32; 4 * 4 * 2])> {
         match (self, platform) {
+            // Winit mode
             (Self::Winit(winit_arcball), Platform::Winit { .. }) => {
                 let matrix = winit_arcball.matrix();
                 let mut data = [0.0; 32];
@@ -26,6 +29,7 @@ impl MultiPlatformCamera {
                     .for_each(|(o, i)| *o = *i);
                 Ok((PlatformReturn::Winit, data))
             }
+            // OpenXR mode
             (
                 Self::OpenXr,
                 Platform::OpenXr {
@@ -51,7 +55,7 @@ impl MultiPlatformCamera {
                     .for_each(|(o, i)| *o = *i);
                 Ok((PlatformReturn::OpenXr(views), data))
             }
-            _ => panic!("Invalid platform"),
+            _ => panic!("{}", PLATFORM_WARNING),
         }
     }
 
@@ -67,7 +71,7 @@ impl MultiPlatformCamera {
                 }
             }
             (Self::OpenXr, PlatformEvent::OpenXr(_)) => (),
-            _ => panic!("Invalid platform"),
+            _ => panic!("{}", PLATFORM_WARNING),
         }
     }
 }

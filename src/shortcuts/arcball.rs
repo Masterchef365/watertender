@@ -24,7 +24,7 @@ impl ArcBall {
             self.clipping.0,
             self.clipping.1,
         );
-        perspective[(1, 1)] *= -1.;
+        perspective[(1, 1)] *= -1.; // TODO: This is a stupid hack.
         perspective
     }
 
