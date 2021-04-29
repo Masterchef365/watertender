@@ -358,8 +358,8 @@ checksum = "3dcaa9ae7725d12cdb85b3ad99a434db70b468c09ded17e012d86b5c1010f7a7"
 
 [[package]]
 name = "gpu-alloc"
-version = "0.4.0"
-source = "git+https://github.com/Friz64/gpu-alloc.git?branch=erupt-update-18#312eefe4aaf6a24db99e15295e559b90878a6793"
+version = "0.4.4"
+source = "git+https://github.com/zakarumych/gpu-alloc.git#ae725fa1f753a77f1f4aac0730ba37a68e675794"
 dependencies = [
  "bitflags",
  "gpu-alloc-types",
@@ -367,8 +367,8 @@ dependencies = [
 
 [[package]]
 name = "gpu-alloc-erupt"
-version = "0.3.0"
-source = "git+https://github.com/Friz64/gpu-alloc.git?branch=erupt-update-18#312eefe4aaf6a24db99e15295e559b90878a6793"
+version = "0.4.0"
+source = "git+https://github.com/zakarumych/gpu-alloc.git#ae725fa1f753a77f1f4aac0730ba37a68e675794"
 dependencies = [
  "erupt",
  "gpu-alloc-types",
@@ -378,7 +378,7 @@ dependencies = [
 [[package]]
 name = "gpu-alloc-types"
 version = "0.2.1"
-source = "git+https://github.com/Friz64/gpu-alloc.git?branch=erupt-update-18#312eefe4aaf6a24db99e15295e559b90878a6793"
+source = "git+https://github.com/zakarumych/gpu-alloc.git#ae725fa1f753a77f1f4aac0730ba37a68e675794"
 dependencies = [
  "bitflags",
 ]
