@@ -14,7 +14,7 @@ use gpu_alloc::GpuAllocator;
 use std::ffi::CString;
 use std::sync::Mutex;
 use winit::{
-    event::Event,
+    event::{Event, WindowEvent},
     event_loop::EventLoop,
     window::{Window, WindowBuilder},
 };
@@ -31,6 +31,7 @@ pub fn launch<M: SyncMainLoop + 'static>(info: AppInfo) -> Result<()> {
 }
 
 // TODO: Swap this out for better behaviour! (At least sorta exit gracefully...)
+/// Print and exit if `r` is an error.
 fn res<T>(r: Result<T>) -> T {
     match r {
         Err(e) => {
@@ -62,9 +63,8 @@ fn begin_loop<M: SyncMainLoop + 'static>(
         res(Swapchain::new(core.clone(), surface, present_mode));
     res(app.swapchain_resize(images, extent));
 
-    // TODO: FPS detection!
-    let mut target_time = crate::target_time::TargetTime::new(60); 
-
+    let mut frame_num = 0;
+    let mut time = std::time::Instant::now();
     event_loop.run(move |event, _, control_flow| {
         res(app.event(
             PlatformEvent::Winit(&event),
@@ -76,17 +76,23 @@ fn begin_loop<M: SyncMainLoop + 'static>(
         ));
 
         match event {
+            Event::WindowEvent { event: WindowEvent::Resized(_), ..} => {
+                let (images, extent) = res(swapchain.rebuild_swapchain());
+                res(app.swapchain_resize(images, extent));
+            }
             Event::MainEventsCleared => {
                 window.request_redraw();
             }
             Event::RedrawRequested(_) => {
+                // Prepare inputs
                 let (image_available, render_finished) = app.winit_sync();
                 let (swapchain_index, resize) = res(swapchain.frame(image_available));
                 let frame = Frame { swapchain_index };
                 if let Some((images, extent)) = resize {
                     res(app.swapchain_resize(images, extent));
                 }
-                target_time.start_frame();
+                
+                // Run app's frame method
                 res(app.frame(
                     frame,
                     &core,
@@ -95,8 +101,20 @@ fn begin_loop<M: SyncMainLoop + 'static>(
                         control_flow,
                     },
                 ));
+
+                // Present
                 res(swapchain.queue_present(swapchain_index, render_finished));
-                target_time.end_frame();
+
+                // FPS counter
+                const N_FRAMES: u32 = 20;
+                frame_num += 1;
+                if frame_num > N_FRAMES {
+                    let fps = N_FRAMES as f32 / time.elapsed().as_secs_f32();
+                    let msg = format!("{:.02} FPS", fps);
+                    window.set_title(&msg);
+                    frame_num = 0;
+                    time = std::time::Instant::now();
+                }
             }
             _ => (),
         }

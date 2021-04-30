@@ -23,7 +23,6 @@ pub use nalgebra;
 mod alloc_helpers;
 mod hardware_query;
 pub mod shortcuts;
-mod target_time;
 
 /// All mainloops run on executors must implement this trait
 pub trait MainLoop: Sized {

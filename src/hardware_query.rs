@@ -57,12 +57,15 @@ impl HardwareSelection {
                     None => return None,
                 };
 
+                let present_mode = khr_surface::PresentModeKHR::FIFO_KHR;
+                /* Use MAILBOX if available
                 let present_mode = instance
                     .get_physical_device_surface_present_modes_khr(physical_device, surface, None)
                     .unwrap()
                     .into_iter()
                     .find(|present_mode| present_mode == &khr_surface::PresentModeKHR::MAILBOX_KHR)
                     .unwrap_or(khr_surface::PresentModeKHR::FIFO_KHR);
+                    */
 
                 let supported_extensions = instance
                     .enumerate_device_extension_properties(physical_device, None, None)
