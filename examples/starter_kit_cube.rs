@@ -4,7 +4,7 @@ use shortcuts::{
     mesh::*,
     shader,
     starter_kit::{self, StarterKit},
-    FrameDataUbo, MultiPlatformCamera, StagingBuffer, Vertex,
+    FrameDataUbo, MultiPlatformCamera, Vertex,
 };
 use watertender::*;
 
@@ -36,7 +36,7 @@ unsafe impl bytemuck::Pod for SceneData {}
 
 impl MainLoop for App {
     fn new(core: &SharedCore, mut platform: Platform<'_>) -> Result<Self> {
-        let starter_kit = StarterKit::new(core.clone(), &mut platform)?;
+        let mut starter_kit = StarterKit::new(core.clone(), &mut platform)?;
 
         // Camera
         let camera = MultiPlatformCamera::new(&mut platform);
@@ -91,10 +91,9 @@ impl MainLoop for App {
         )?;
 
         // Mesh uploads
-        let mut staging_buffer = StagingBuffer::new(core.clone())?;
         let (vertices, indices) = rainbow_cube();
         let rainbow_cube = upload_mesh(
-            &mut staging_buffer,
+            &mut starter_kit.staging_buffer,
             starter_kit.command_buffers[0],
             &vertices,
             &indices,
