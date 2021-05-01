@@ -162,6 +162,7 @@ pub fn request_from_usage_requirements(
 impl Drop for ManagedImage {
     fn drop(&mut self) {
         unsafe {
+            self.core.device.queue_wait_idle(self.core.queue).unwrap(); // TODO: Drop without queue wait?
             self.core.device.destroy_image(Some(self.instance), None);
             self.core
                 .deallocate(self.memory.take().expect("Double free of image memory"))
