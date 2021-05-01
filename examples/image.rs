@@ -127,11 +127,16 @@ impl MainLoop for App {
         // Image uploads
         let image_layout = vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL;
         let command_buffer = starter_kit.current_command_buffer(); // TODO: This probably breaks stuff lmaoo
-        let (cube_tex, image_sub) = upload_image(
+
+        let (data, info) = read_image("./examples/obama.png").context("Failed to read image")?;
+        let (cube_tex, subresource_range) = starter_kit.staging_buffer.upload_image(
             command_buffer,
-            &mut starter_kit.staging_buffer,
-            image_layout,
-            "./examples/obama.png",
+            info.width,
+            info.height,
+            &data,
+            TEXTURE_FORMAT,
+            vk::ImageUsageFlags::SAMPLED,
+            vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
         )?;
 
         // Create image view
@@ -139,7 +144,7 @@ impl MainLoop for App {
             .image(cube_tex.instance())
             .view_type(vk::ImageViewType::_2D)
             .format(TEXTURE_FORMAT)
-            .subresource_range(image_sub.build())
+            .subresource_range(*subresource_range)
             .build();
 
         let image_view =
@@ -288,68 +293,6 @@ fn rainbow_cube() -> (Vec<Vertex>, Vec<u32>) {
     ];
 
     (vertices, indices)
-}
-
-fn upload_image(
-    command_buffer: vk::CommandBuffer,
-    staging_buffer: &mut StagingBuffer,
-    final_layout: vk::ImageLayout,
-    path: impl AsRef<Path>,
-) -> Result<(ManagedImage, vk::ImageSubresourceRangeBuilder<'static>)> {
-    let (image, info) = read_image(path).context("Failed to read image")?;
-
-    let extent = vk::Extent3DBuilder::new()
-        .width(info.width)
-        .height(info.height)
-        .depth(1)
-        .build();
-
-    let create_info = vk::ImageCreateInfoBuilder::new()
-        .image_type(vk::ImageType::_2D)
-        .extent(extent)
-        .mip_levels(1)
-        .array_layers(1)
-        .format(TEXTURE_FORMAT)
-        .tiling(vk::ImageTiling::OPTIMAL)
-        .initial_layout(vk::ImageLayout::UNDEFINED)
-        .usage(vk::ImageUsageFlags::TRANSFER_DST | vk::ImageUsageFlags::SAMPLED)
-        .sharing_mode(vk::SharingMode::EXCLUSIVE)
-        .samples(vk::SampleCountFlagBits::_1);
-
-    let offset = vk::Offset3DBuilder::new().x(0).y(0).z(0).build();
-
-    let image_subresources = vk::ImageSubresourceLayersBuilder::new()
-        .aspect_mask(vk::ImageAspectFlags::COLOR)
-        .mip_level(0)
-        .base_array_layer(0)
-        .layer_count(1)
-        .build();
-
-    let subresource_range = vk::ImageSubresourceRangeBuilder::new()
-        .aspect_mask(image_subresources.aspect_mask)
-        .base_mip_level(image_subresources.mip_level)
-        .level_count(1)
-        .base_array_layer(image_subresources.base_array_layer)
-        .layer_count(image_subresources.layer_count);
-
-    let copy = vk::BufferImageCopyBuilder::new()
-        .buffer_offset(0)
-        .buffer_row_length(0)
-        .buffer_image_height(0)
-        .image_subresource(image_subresources)
-        .image_offset(offset)
-        .image_extent(extent);
-
-    let image = staging_buffer.upload_image(
-        command_buffer,
-        create_info,
-        copy,
-        subresource_range,
-        final_layout,
-        &image,
-    )?;
-
-    Ok((image, subresource_range))
 }
 
 fn read_image(path: impl AsRef<Path>) -> Result<(Vec<u8>, png::OutputInfo)> {

@@ -24,6 +24,7 @@ impl StagingBuffer {
     // TODO: Make a batched upload option? (So that you don't have to do a million queue idles...
     // TODO: This should also probably use a transfer queue...
     // TODO: Multi-part uploads for BIG data?
+    /// Warning: Assumes an inactive command buffer
     pub fn upload_buffer<T: Pod>(
         &mut self,
         command_buffer: vk::CommandBuffer,
@@ -83,15 +84,60 @@ impl StagingBuffer {
         Ok(gpu_buffer)
     }
 
+    /// Warning: Assumes an inactive command buffer
     pub fn upload_image(
         &mut self,
         command_buffer: vk::CommandBuffer,
-        mut ci: vk::ImageCreateInfoBuilder<'static>,
-        copy: vk::BufferImageCopyBuilder<'static>,
-        subresource_range: vk::ImageSubresourceRangeBuilder<'static>,
-        final_layout: vk::ImageLayout,
+        width: u32,
+        height: u32,
         data: &[u8],
-    ) -> Result<ManagedImage> {
+        format: vk::Format,
+        usage: vk::ImageUsageFlags,
+        final_layout: vk::ImageLayout,
+    ) -> Result<(ManagedImage, vk::ImageSubresourceRangeBuilder<'static>)> {
+        // Image settings
+        let extent = vk::Extent3DBuilder::new()
+            .width(width)
+            .height(height)
+            .depth(1)
+            .build();
+
+        let ci = vk::ImageCreateInfoBuilder::new()
+            .image_type(vk::ImageType::_2D)
+            .extent(extent)
+            .mip_levels(1)
+            .array_layers(1)
+            .format(format)
+            .tiling(vk::ImageTiling::OPTIMAL)
+            .initial_layout(vk::ImageLayout::UNDEFINED)
+            .usage(vk::ImageUsageFlags::TRANSFER_DST | usage)
+            .sharing_mode(vk::SharingMode::EXCLUSIVE)
+            .samples(vk::SampleCountFlagBits::_1);
+
+        let offset = vk::Offset3DBuilder::new().x(0).y(0).z(0).build();
+
+        let image_subresources = vk::ImageSubresourceLayersBuilder::new()
+            .aspect_mask(vk::ImageAspectFlags::COLOR)
+            .mip_level(0)
+            .base_array_layer(0)
+            .layer_count(1)
+            .build();
+
+        let subresource_range = vk::ImageSubresourceRangeBuilder::new()
+            .aspect_mask(image_subresources.aspect_mask)
+            .base_mip_level(image_subresources.mip_level)
+            .level_count(1)
+            .base_array_layer(image_subresources.base_array_layer)
+            .layer_count(image_subresources.layer_count);
+
+        let copy = vk::BufferImageCopyBuilder::new()
+            .buffer_offset(0)
+            .buffer_row_length(0)
+            .buffer_image_height(0)
+            .image_subresource(image_subresources)
+            .image_offset(offset)
+            .image_extent(extent);
+
         // Expand our internal buffer to match the size of the data to be uploaded
         if data.len() as u64 > self.current_size {
             self.current_size = data.len() as u64;
@@ -102,7 +148,6 @@ impl StagingBuffer {
         self.buffer.write_bytes(0, bytemuck::cast_slice(data))?;
 
         // Create the final buffer
-        ci.usage |= vk::ImageUsageFlags::TRANSFER_DST;
         let gpu_image = ManagedImage::new(self.core.clone(), ci, UsageFlags::FAST_DEVICE_ACCESS)?;
         
         // NOTE: image_layout must be one of VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL, or VK_IMAGE_LAYOUT_SHARED_PRESENT_KHR
@@ -182,7 +227,7 @@ impl StagingBuffer {
             self.core.device.queue_wait_idle(self.core.queue).result()?;
         }
 
-        Ok(gpu_image)
+        Ok((gpu_image, subresource_range))
     }
 
     fn build_staging_buffer(core: SharedCore, size: u64) -> Result<ManagedBuffer> {
