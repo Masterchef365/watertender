@@ -36,7 +36,6 @@ pub struct ManagedBuffer {
     pub core: SharedCore,
 }
 
-
 const USE_AFTER_FREE_MSG: &str = "Use-after-free!";
 
 impl ManagedBuffer {
@@ -63,15 +62,20 @@ impl ManagedBuffer {
 
     pub fn write_bytes(&mut self, offset: u64, data: &[u8]) -> Result<()> {
         Ok(unsafe {
-            self.memory.as_mut().expect(USE_AFTER_FREE_MSG)
+            self.memory
+                .as_mut()
+                .expect(USE_AFTER_FREE_MSG)
                 .write_bytes(EMD::wrap(&self.core.device), offset, data)?;
         })
     }
 
     pub fn read_bytes(&mut self, offset: u64, data: &mut [u8]) -> Result<()> {
         Ok(unsafe {
-            self.memory.as_mut().expect(USE_AFTER_FREE_MSG)
-                .read_bytes(EMD::wrap(&self.core.device), offset, data)?;
+            self.memory.as_mut().expect(USE_AFTER_FREE_MSG).read_bytes(
+                EMD::wrap(&self.core.device),
+                offset,
+                data,
+            )?;
         })
     }
 
@@ -104,15 +108,20 @@ impl ManagedImage {
 
     pub fn write_bytes(&mut self, offset: u64, data: &[u8]) -> Result<()> {
         Ok(unsafe {
-            self.memory.as_mut().expect(USE_AFTER_FREE_MSG)
+            self.memory
+                .as_mut()
+                .expect(USE_AFTER_FREE_MSG)
                 .write_bytes(EMD::wrap(&self.core.device), offset, data)?;
         })
     }
 
     pub fn read_bytes(&mut self, offset: u64, data: &mut [u8]) -> Result<()> {
         Ok(unsafe {
-            self.memory.as_mut().expect(USE_AFTER_FREE_MSG)
-                .read_bytes(EMD::wrap(&self.core.device), offset, data)?;
+            self.memory.as_mut().expect(USE_AFTER_FREE_MSG).read_bytes(
+                EMD::wrap(&self.core.device),
+                offset,
+                data,
+            )?;
         })
     }
 
@@ -154,7 +163,9 @@ impl Drop for ManagedImage {
     fn drop(&mut self) {
         unsafe {
             self.core.device.destroy_image(Some(self.instance), None);
-            self.core.deallocate(self.memory.take().expect("Double free of image memory")).unwrap();
+            self.core
+                .deallocate(self.memory.take().expect("Double free of image memory"))
+                .unwrap();
         }
     }
 }
@@ -164,21 +175,23 @@ impl Drop for ManagedBuffer {
         unsafe {
             self.core.device.queue_wait_idle(self.core.queue).unwrap(); // TODO: Drop without queue wait?
             self.core.device.destroy_buffer(Some(self.instance), None);
-            self.core.deallocate(self.memory.take().expect("Double free of image memory")).unwrap();
+            self.core
+                .deallocate(self.memory.take().expect("Double free of image memory"))
+                .unwrap();
         }
     }
 }
 
 // Credit: https://github.com/SaschaWillems/Vulkan/tree/master/examples/dynamicuniformbuffer
 pub fn pad_uniform_buffer_size(device_properties: vk::PhysicalDeviceProperties, size: u64) -> u64 {
-	let min_align = device_properties.limits.min_uniform_buffer_offset_alignment;
+    let min_align = device_properties.limits.min_uniform_buffer_offset_alignment;
     pad_size(min_align, size)
 }
 
 pub fn pad_size(min_align: u64, size: u64) -> u64 {
-	if min_align > 0 {
-		(size + min_align - 1) & !(min_align - 1)
-	} else {
+    if min_align > 0 {
+        (size + min_align - 1) & !(min_align - 1)
+    } else {
         size
     }
 }

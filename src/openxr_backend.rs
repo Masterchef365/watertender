@@ -333,7 +333,8 @@ fn build_cores(
         gpu_alloc::Config::i_am_prototyping(),
         device_props,
     ));
-    let device_properties = unsafe { vk_instance.get_physical_device_properties(vk_physical_device, None) };
+    let device_properties =
+        unsafe { vk_instance.get_physical_device_properties(vk_physical_device, None) };
 
     // OpenXR session
     let (session, frame_wait, frame_stream) = unsafe {
@@ -388,10 +389,7 @@ type SwapchainImages = (Vec<vk::Image>, vk::Extent2D);
 
 impl Swapchain {
     /// Create a new engine instance. Returns the OpenXr caddy for use with input handling.
-    pub fn new(
-        xr_core: SharedXrCore,
-        frame_stream: xr::FrameStream<xr::Vulkan>,
-    ) -> Result<Self> {
+    pub fn new(xr_core: SharedXrCore, frame_stream: xr::FrameStream<xr::Vulkan>) -> Result<Self> {
         Ok(Self {
             swapchain: None,
             frame_stream,

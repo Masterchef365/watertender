@@ -76,7 +76,11 @@ impl FramebufferManager {
             .samples(vk::SampleCountFlagBits::_1)
             .sharing_mode(vk::SharingMode::EXCLUSIVE);
 
-        let depth_image = ManagedImage::new(self.core.clone(), create_info, UsageFlags::FAST_DEVICE_ACCESS)?;
+        let depth_image = ManagedImage::new(
+            self.core.clone(),
+            create_info,
+            UsageFlags::FAST_DEVICE_ACCESS,
+        )?;
 
         let create_info = vk::ImageViewCreateInfoBuilder::new()
             .image(depth_image.instance())

@@ -16,10 +16,7 @@ pub struct FrameDataUbo<T> {
 }
 
 impl<T: Pod> FrameDataUbo<T> {
-    pub fn new(
-        core: SharedCore,
-        frames: usize,
-    ) -> Result<Self> {
+    pub fn new(core: SharedCore, frames: usize) -> Result<Self> {
         // Calculate the stride for the uniform buffer entries
         let padded_size = memory::pad_uniform_buffer_size(
             core.device_properties,
@@ -35,13 +32,11 @@ impl<T: Pod> FrameDataUbo<T> {
 
         // Create descriptor set layout
         let binding = 0;
-        let bindings = [
-            vk::DescriptorSetLayoutBindingBuilder::new()
+        let bindings = [vk::DescriptorSetLayoutBindingBuilder::new()
             .binding(binding)
             .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
             .descriptor_count(1)
-            .stage_flags(vk::ShaderStageFlags::VERTEX),
-        ];
+            .stage_flags(vk::ShaderStageFlags::VERTEX)];
 
         let descriptor_set_layout_ci =
             vk::DescriptorSetLayoutCreateInfoBuilder::new().bindings(&bindings);
@@ -133,7 +128,9 @@ impl<T> Drop for FrameDataUbo<T> {
             self.core
                 .device
                 .destroy_descriptor_pool(Some(self.descriptor_pool), None);
-            self.core.device.destroy_descriptor_set_layout(Some(self.descriptor_set_layout), None);
+            self.core
+                .device
+                .destroy_descriptor_set_layout(Some(self.descriptor_set_layout), None);
         }
     }
 }

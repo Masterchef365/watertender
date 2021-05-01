@@ -84,10 +84,7 @@ impl MainLoop for App {
             unsafe { core.device.allocate_descriptor_sets(&create_info) }.result()?[0];
 
         // Scene data
-        let scene_ubo = FrameDataUbo::new(
-            core.clone(),
-            starter_kit::FRAMES_IN_FLIGHT,
-        )?;
+        let scene_ubo = FrameDataUbo::new(core.clone(), starter_kit::FRAMES_IN_FLIGHT)?;
 
         let descriptor_set_layouts = [scene_ubo.descriptor_set_layout(), descriptor_set_layout];
 

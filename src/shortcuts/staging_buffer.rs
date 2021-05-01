@@ -1,4 +1,4 @@
-use crate::shortcuts::{ManagedBuffer, ManagedImage, memory::UsageFlags};
+use crate::shortcuts::{memory::UsageFlags, ManagedBuffer, ManagedImage};
 use crate::SharedCore;
 use anyhow::Result;
 use bytemuck::Pod;
@@ -149,7 +149,7 @@ impl StagingBuffer {
 
         // Create the final buffer
         let gpu_image = ManagedImage::new(self.core.clone(), ci, UsageFlags::FAST_DEVICE_ACCESS)?;
-        
+
         // NOTE: image_layout must be one of VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL, or VK_IMAGE_LAYOUT_SHARED_PRESENT_KHR
         // Refer to: https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/vkCmdCopyBufferToImage.html
         let image_layout = vk::ImageLayout::GENERAL; // TODO: Add an enum for some common modes? (like DST_OPTIMAL)

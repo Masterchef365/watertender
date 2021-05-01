@@ -8,7 +8,8 @@ pub enum MultiPlatformCamera {
     OpenXr,
 }
 
-const PLATFORM_WARNING: &str = "Mutli platform camera was created a different platform than this call";
+const PLATFORM_WARNING: &str =
+    "Mutli platform camera was created a different platform than this call";
 
 impl MultiPlatformCamera {
     pub fn new(platform: &mut Platform<'_>) -> Self {

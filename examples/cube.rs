@@ -1,7 +1,7 @@
 use anyhow::Result;
 use shortcuts::{
-    create_render_pass, shader, FramebufferManager, Synchronization, StagingBuffer, MultiPlatformCamera, FrameDataUbo,
-    Vertex, launch, mesh::*
+    create_render_pass, launch, mesh::*, shader, FrameDataUbo, FramebufferManager,
+    MultiPlatformCamera, StagingBuffer, Synchronization, Vertex,
 };
 
 use watertender::*;
@@ -34,7 +34,7 @@ fn main() -> Result<()> {
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
 struct SceneData {
-    cameras: [f32; 4*4*2],
+    cameras: [f32; 4 * 4 * 2],
     anim: f32,
 }
 
@@ -66,7 +66,7 @@ impl MainLoop for App {
         let push_constant_ranges = [vk::PushConstantRangeBuilder::new()
             .stage_flags(vk::ShaderStageFlags::VERTEX)
             .offset(0)
-            .size(std::mem::size_of::<[f32; 4*4]>() as u32)];
+            .size(std::mem::size_of::<[f32; 4 * 4]>() as u32)];
 
         let create_info = vk::PipelineLayoutCreateInfoBuilder::new()
             .push_constant_ranges(&push_constant_ranges)
@@ -104,7 +104,8 @@ impl MainLoop for App {
         // Mesh uploads
         let mut staging_buffer = StagingBuffer::new(core.clone())?;
         let (vertices, indices) = rainbow_cube();
-        let rainbow_cube = upload_mesh(&mut staging_buffer, command_buffers[0], &vertices, &indices)?;
+        let rainbow_cube =
+            upload_mesh(&mut staging_buffer, command_buffers[0], &vertices, &indices)?;
 
         Ok(Self {
             anim: 0.0,
@@ -204,7 +205,11 @@ impl MainLoop for App {
                 self.pipeline,
             );
 
-            draw_meshes(&core, command_buffer, std::slice::from_ref(&self.rainbow_cube));
+            draw_meshes(
+                &core,
+                command_buffer,
+                std::slice::from_ref(&self.rainbow_cube),
+            );
             // End draw cmds
 
             core.device.cmd_end_render_pass(command_buffer);
@@ -215,15 +220,16 @@ impl MainLoop for App {
         let (ret, cameras) = self.camera.get_matrices(platform)?;
 
         // TODO: For cameras, put this JUST before the submit?
-        self.scene_ubo.upload(self.frame, &SceneData {
-            cameras,
-            anim: self.anim,
-        })?;
+        self.scene_ubo.upload(
+            self.frame,
+            &SceneData {
+                cameras,
+                anim: self.anim,
+            },
+        )?;
 
         let command_buffers = [command_buffer];
-        if let Some((image_available, render_finished)) =
-            self.sync.swapchain_sync(self.frame)
-        {
+        if let Some((image_available, render_finished)) = self.sync.swapchain_sync(self.frame) {
             let wait_semaphores = [image_available];
             let signal_semaphores = [render_finished];
             let submit_info = vk::SubmitInfoBuilder::new()
