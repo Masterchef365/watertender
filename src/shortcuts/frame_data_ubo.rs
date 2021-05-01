@@ -19,7 +19,6 @@ impl<T: Pod> FrameDataUbo<T> {
     pub fn new(
         core: SharedCore,
         frames: usize,
-        binding: u32,
     ) -> Result<Self> {
         // Calculate the stride for the uniform buffer entries
         let padded_size = memory::pad_uniform_buffer_size(
@@ -35,6 +34,7 @@ impl<T: Pod> FrameDataUbo<T> {
         let buffer = ManagedBuffer::new(core.clone(), ci, memory::UsageFlags::UPLOAD)?;
 
         // Create descriptor set layout
+        let binding = 0;
         let bindings = [
             vk::DescriptorSetLayoutBindingBuilder::new()
             .binding(binding)

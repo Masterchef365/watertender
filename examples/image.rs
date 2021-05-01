@@ -5,14 +5,14 @@ use shortcuts::{
     mesh::*,
     shader,
     starter_kit::{self, StarterKit},
-    FrameDataUbo, MultiPlatformCamera, StagingBuffer, Vertex,
+    FrameDataUbo, MultiPlatformCamera, Vertex,
 };
 use std::path::Path;
 use watertender::*;
 
 struct App {
     descriptor_set: vk::DescriptorSet,
-    cube_tex: ManagedImage,
+    _cube_tex: ManagedImage,
     rainbow_cube: ManagedMesh,
     pipeline: vk::Pipeline,
     pipeline_layout: vk::PipelineLayout,
@@ -87,7 +87,6 @@ impl MainLoop for App {
         let scene_ubo = FrameDataUbo::new(
             core.clone(),
             starter_kit::FRAMES_IN_FLIGHT,
-            0, // This takes a WHOLE descriptr set. h.
         )?;
 
         let descriptor_set_layouts = [scene_ubo.descriptor_set_layout(), descriptor_set_layout];
@@ -190,7 +189,7 @@ impl MainLoop for App {
 
         Ok(Self {
             descriptor_set,
-            cube_tex,
+            _cube_tex: cube_tex,
             camera,
             anim: 0.0,
             pipeline_layout,
