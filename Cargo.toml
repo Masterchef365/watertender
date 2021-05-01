@@ -19,3 +19,6 @@ ctrlc = "3.1"
 nalgebra = { version = "0.26", optional = true }
 #gpu-alloc-erupt = "0.3"
 #gpu-alloc = "0.3"
+
+[dev-dependencies]
+png = "0.16.8"

@@ -22,8 +22,8 @@ pub fn upload_mesh(
             .size(std::mem::size_of_val(indices) as u64);
 
 
-    let vertices = staging.upload(command_buffer, vertex_ci, &vertices)?;
-    let indices = staging.upload(command_buffer, index_ci, &indices)?;
+    let vertices = staging.upload_buffer(command_buffer, vertex_ci, &vertices)?;
+    let indices = staging.upload_buffer(command_buffer, index_ci, &indices)?;
     Ok(ManagedMesh {
         vertices,
         indices,
