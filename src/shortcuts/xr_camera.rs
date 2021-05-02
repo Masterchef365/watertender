@@ -1,4 +1,4 @@
-use nalgebra::{Quaternion, Unit, Vector3, Matrix4};
+use nalgebra::{Matrix4, Quaternion, Unit, Vector3};
 use openxr as xr;
 
 /// Create a view matrix for the given pose
@@ -45,4 +45,3 @@ pub fn projection_from_fov(fov: &xr::Fovf, near: f32, far: f32) -> Matrix4<f32> 
         0.0, 0.0, -1.0, 0.0, //
     )
 }
-

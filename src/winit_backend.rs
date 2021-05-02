@@ -76,7 +76,10 @@ fn begin_loop<M: SyncMainLoop + 'static>(
         ));
 
         match event {
-            Event::WindowEvent { event: WindowEvent::Resized(_), ..} => {
+            Event::WindowEvent {
+                event: WindowEvent::Resized(_),
+                ..
+            } => {
                 let (images, extent) = res(swapchain.rebuild_swapchain());
                 res(app.swapchain_resize(images, extent));
             }
@@ -91,7 +94,7 @@ fn begin_loop<M: SyncMainLoop + 'static>(
                 if let Some((images, extent)) = resize {
                     res(app.swapchain_resize(images, extent));
                 }
-                
+
                 // Run app's frame method
                 res(app.frame(
                     frame,
@@ -184,7 +187,8 @@ pub fn build_core(info: AppInfo, window: &Window) -> Result<(Core, SurfaceKHR, P
         gpu_alloc::Config::i_am_prototyping(), // TODO: SET THIS TO SOMETHING MORE SANE!! Maybe embed in AppInfo?!
         device_props,
     ));
-    let device_properties = unsafe { instance.get_physical_device_properties(hardware.physical_device, None) };
+    let device_properties =
+        unsafe { instance.get_physical_device_properties(hardware.physical_device, None) };
 
     let core = Core {
         physical_device: hardware.physical_device,
@@ -297,7 +301,7 @@ impl Swapchain {
             .clipped(true)
             .old_swapchain(match old_swapchain {
                 Some(s) => s,
-                None => SwapchainKHR::null()
+                None => SwapchainKHR::null(),
             });
 
         let swapchain =
@@ -309,11 +313,7 @@ impl Swapchain {
         Ok((swapchain, (swapchain_images, surface_caps.current_extent)))
     }
 
-    fn queue_present(
-        &mut self,
-        image_index: u32,
-        render_finished: vk::Semaphore,
-    ) -> Result<()> {
+    fn queue_present(&mut self, image_index: u32, render_finished: vk::Semaphore) -> Result<()> {
         // Present to swapchain
         let swapchains = [self.inner];
         let image_indices = [image_index];
@@ -334,8 +334,12 @@ impl Swapchain {
     }
 
     fn rebuild_swapchain(&mut self) -> Result<SwapchainImages> {
-        let (swapchain, resize) =
-            Self::create_swapchain(&self.core, self.surface, self.present_mode, Some(self.inner))?;
+        let (swapchain, resize) = Self::create_swapchain(
+            &self.core,
+            self.surface,
+            self.present_mode,
+            Some(self.inner),
+        )?;
         self.free_swapchain();
         self.inner = swapchain;
         Ok(resize)

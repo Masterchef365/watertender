@@ -1,8 +1,7 @@
 use crate::shortcuts::{
-    create_render_pass, launch, FramebufferManager,
-    StagingBuffer, Synchronization
+    create_render_pass, launch, FramebufferManager, StagingBuffer, Synchronization,
 };
-use crate::{AppInfo, Frame, Platform, SharedCore, SyncMainLoop, PlatformEvent};
+use crate::{AppInfo, Frame, Platform, PlatformEvent, SharedCore, SyncMainLoop};
 use anyhow::Result;
 use erupt::vk;
 
@@ -19,8 +18,8 @@ pub struct StarterKit {
     pub frame: usize,
 }
 
-/// Run the main loop with validation, and if any command 
-/// line args are specified, then run in VR mode 
+/// Run the main loop with validation, and if any command
+/// line args are specified, then run in VR mode
 pub fn debug<App: SyncMainLoop + 'static>() -> Result<()> {
     let info = AppInfo::default().validation(true);
     let vr = std::env::args().count() > 1;
@@ -165,9 +164,7 @@ impl StarterKit {
         }
 
         let command_buffers = [command_buffer];
-        if let Some((image_available, render_finished)) =
-            self.sync.swapchain_sync(self.frame)
-        {
+        if let Some((image_available, render_finished)) = self.sync.swapchain_sync(self.frame) {
             let wait_semaphores = [image_available];
             let signal_semaphores = [render_finished];
             let submit_info = vk::SubmitInfoBuilder::new()
@@ -196,6 +193,10 @@ impl StarterKit {
         Ok(())
     }
 
+    pub fn current_command_buffer(&self) -> vk::CommandBuffer {
+        self.command_buffers[self.frame]
+    }
+
     pub fn swapchain_resize(&mut self, images: Vec<vk::Image>, extent: vk::Extent2D) -> Result<()> {
         self.framebuffer.resize(images, extent, self.render_pass)
     }
@@ -207,8 +208,7 @@ impl StarterKit {
     }
 }
 
-pub fn close_when_asked(event: PlatformEvent<'_, '_>, platform: Platform<'_>,
-) {
+pub fn close_when_asked(event: PlatformEvent<'_, '_>, platform: Platform<'_>) {
     if let PlatformEvent::Winit(winit::event::Event::WindowEvent { event, .. }) = event {
         if let winit::event::WindowEvent::CloseRequested = event {
             if let Platform::Winit { control_flow, .. } = platform {

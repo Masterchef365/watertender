@@ -1,7 +1,7 @@
 use anyhow::Result;
 use shortcuts::{
-    create_render_pass, shader, FramebufferManager, Synchronization, StagingBuffer, MultiPlatformCamera, FrameDataUbo,
-    Vertex, launch, mesh::*
+    create_render_pass, launch, mesh::*, shader, FrameDataUbo, FramebufferManager,
+    MultiPlatformCamera, StagingBuffer, Synchronization, Vertex,
 };
 
 use watertender::*;
@@ -34,7 +34,7 @@ fn main() -> Result<()> {
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
 struct SceneData {
-    cameras: [f32; 4*4*2],
+    cameras: [f32; 4 * 4 * 2],
     anim: f32,
 }
 
@@ -57,34 +57,16 @@ impl MainLoop for App {
         // Camera
         let camera = MultiPlatformCamera::new(&mut platform);
 
-        const SCENE_DATA_BINDING: u32 = 0;
-        let bindings = [
-            vk::DescriptorSetLayoutBindingBuilder::new()
-                .binding(SCENE_DATA_BINDING)
-                .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
-                .descriptor_count(1)
-                .stage_flags(vk::ShaderStageFlags::VERTEX | vk::ShaderStageFlags::FRAGMENT),
-        ];
-
-        let descriptor_set_layout_ci =
-            vk::DescriptorSetLayoutCreateInfoBuilder::new().bindings(&bindings);
-
-        let descriptor_set_layout = unsafe {
-            core.device
-                .create_descriptor_set_layout(&descriptor_set_layout_ci, None, None)
-        }
-        .result()?;
-
         // Scene data
-        let scene_ubo = FrameDataUbo::new(core.clone(), FRAMES_IN_FLIGHT, descriptor_set_layout, SCENE_DATA_BINDING)?;
+        let scene_ubo = FrameDataUbo::new(core.clone(), FRAMES_IN_FLIGHT)?;
 
-        let descriptor_set_layouts = [descriptor_set_layout];
+        let descriptor_set_layouts = [scene_ubo.descriptor_set_layout()];
 
         // Pipeline layout
         let push_constant_ranges = [vk::PushConstantRangeBuilder::new()
             .stage_flags(vk::ShaderStageFlags::VERTEX)
             .offset(0)
-            .size(std::mem::size_of::<[f32; 4*4]>() as u32)];
+            .size(std::mem::size_of::<[f32; 4 * 4]>() as u32)];
 
         let create_info = vk::PipelineLayoutCreateInfoBuilder::new()
             .push_constant_ranges(&push_constant_ranges)
@@ -122,7 +104,8 @@ impl MainLoop for App {
         // Mesh uploads
         let mut staging_buffer = StagingBuffer::new(core.clone())?;
         let (vertices, indices) = rainbow_cube();
-        let rainbow_cube = upload_mesh(&mut staging_buffer, command_buffers[0], &vertices, &indices)?;
+        let rainbow_cube =
+            upload_mesh(&mut staging_buffer, command_buffers[0], &vertices, &indices)?;
 
         Ok(Self {
             anim: 0.0,
@@ -222,7 +205,11 @@ impl MainLoop for App {
                 self.pipeline,
             );
 
-            draw_meshes(&core, command_buffer, std::slice::from_ref(&self.rainbow_cube));
+            draw_meshes(
+                &core,
+                command_buffer,
+                std::slice::from_ref(&self.rainbow_cube),
+            );
             // End draw cmds
 
             core.device.cmd_end_render_pass(command_buffer);
@@ -233,15 +220,16 @@ impl MainLoop for App {
         let (ret, cameras) = self.camera.get_matrices(platform)?;
 
         // TODO: For cameras, put this JUST before the submit?
-        self.scene_ubo.upload(self.frame, &SceneData {
-            cameras,
-            anim: self.anim,
-        })?;
+        self.scene_ubo.upload(
+            self.frame,
+            &SceneData {
+                cameras,
+                anim: self.anim,
+            },
+        )?;
 
         let command_buffers = [command_buffer];
-        if let Some((image_available, render_finished)) =
-            self.sync.swapchain_sync(self.frame)
-        {
+        if let Some((image_available, render_finished)) = self.sync.swapchain_sync(self.frame) {
             let wait_semaphores = [image_available];
             let signal_semaphores = [render_finished];
             let submit_info = vk::SubmitInfoBuilder::new()

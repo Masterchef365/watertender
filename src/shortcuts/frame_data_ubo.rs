@@ -11,16 +11,12 @@ pub struct FrameDataUbo<T> {
     padded_size: u64,
     descriptor_sets: Vec<vk::DescriptorSet>,
     descriptor_pool: vk::DescriptorPool,
+    descriptor_set_layout: vk::DescriptorSetLayout,
     _phantom: PhantomData<T>,
 }
 
 impl<T: Pod> FrameDataUbo<T> {
-    pub fn new(
-        core: SharedCore,
-        frames: usize,
-        descriptor_set_layout: vk::DescriptorSetLayout,
-        binding: u32,
-    ) -> Result<Self> {
+    pub fn new(core: SharedCore, frames: usize) -> Result<Self> {
         // Calculate the stride for the uniform buffer entries
         let padded_size = memory::pad_uniform_buffer_size(
             core.device_properties,
@@ -33,6 +29,23 @@ impl<T: Pod> FrameDataUbo<T> {
             .sharing_mode(vk::SharingMode::EXCLUSIVE)
             .usage(vk::BufferUsageFlags::UNIFORM_BUFFER);
         let buffer = ManagedBuffer::new(core.clone(), ci, memory::UsageFlags::UPLOAD)?;
+
+        // Create descriptor set layout
+        let binding = 0;
+        let bindings = [vk::DescriptorSetLayoutBindingBuilder::new()
+            .binding(binding)
+            .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
+            .descriptor_count(1)
+            .stage_flags(vk::ShaderStageFlags::VERTEX)];
+
+        let descriptor_set_layout_ci =
+            vk::DescriptorSetLayoutCreateInfoBuilder::new().bindings(&bindings);
+
+        let descriptor_set_layout = unsafe {
+            core.device
+                .create_descriptor_set_layout(&descriptor_set_layout_ci, None, None)
+        }
+        .result()?;
 
         // Create descriptor pool
         let pool_sizes = [vk::DescriptorPoolSizeBuilder::new()
@@ -83,6 +96,7 @@ impl<T: Pod> FrameDataUbo<T> {
         }
 
         Ok(Self {
+            descriptor_set_layout,
             core,
             buffer,
             padded_size,
@@ -90,6 +104,10 @@ impl<T: Pod> FrameDataUbo<T> {
             descriptor_sets,
             _phantom: PhantomData,
         })
+    }
+
+    pub fn descriptor_set_layout(&self) -> vk::DescriptorSetLayout {
+        self.descriptor_set_layout
     }
 
     pub fn descriptor_set(&self, frame: usize) -> vk::DescriptorSet {
@@ -110,6 +128,9 @@ impl<T> Drop for FrameDataUbo<T> {
             self.core
                 .device
                 .destroy_descriptor_pool(Some(self.descriptor_pool), None);
+            self.core
+                .device
+                .destroy_descriptor_set_layout(Some(self.descriptor_set_layout), None);
         }
     }
 }
