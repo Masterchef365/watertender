@@ -11,7 +11,7 @@ default = ["winit", "openxr", "nalgebra"]
 anyhow = "1"
 erupt = "0.18"
 winit = { version = "0.24", optional = true }
-openxr = { version = "0.14", optional = true }
+openxr = { version = "0.14", optional = true, features = ["static"] }
 gpu-alloc-erupt = { git = "https://github.com/zakarumych/gpu-alloc.git" }
 gpu-alloc = { git = "https://github.com/zakarumych/gpu-alloc.git" }
 bytemuck = "1.5"

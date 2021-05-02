@@ -144,7 +144,7 @@ fn build_cores(
     xr::FrameWaiter,
 )> {
     // Load OpenXR runtime
-    let xr_entry = xr::Entry::load()?;
+    let xr_entry = xr::Entry::linked();
 
     let available_extensions = xr_entry.enumerate_extensions()?;
     ensure!(
