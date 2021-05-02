@@ -11,18 +11,8 @@ pub fn upload_mesh(
 ) -> Result<ManagedMesh> {
     let n_indices = indices.len() as u32;
 
-    let vertex_ci = vk::BufferCreateInfoBuilder::new()
-        .usage(vk::BufferUsageFlags::VERTEX_BUFFER)
-        .sharing_mode(vk::SharingMode::EXCLUSIVE)
-        .size(std::mem::size_of_val(vertices) as u64);
-
-    let index_ci = vk::BufferCreateInfoBuilder::new()
-        .usage(vk::BufferUsageFlags::INDEX_BUFFER)
-        .sharing_mode(vk::SharingMode::EXCLUSIVE)
-        .size(std::mem::size_of_val(indices) as u64);
-
-    let vertices = staging.upload_buffer(command_buffer, vertex_ci, &vertices)?;
-    let indices = staging.upload_buffer(command_buffer, index_ci, &indices)?;
+    let vertices = staging.upload_buffer_pod(command_buffer, vk::BufferUsageFlags::VERTEX_BUFFER, &vertices)?;
+    let indices = staging.upload_buffer_pod(command_buffer, vk::BufferUsageFlags::INDEX_BUFFER, &indices)?;
     Ok(ManagedMesh {
         vertices,
         indices,
@@ -36,7 +26,7 @@ pub struct ManagedMesh {
     pub n_indices: u32,
 }
 
-pub fn draw_meshes(core: &Core, command_buffer: vk::CommandBuffer, meshes: &[ManagedMesh]) {
+pub fn draw_meshes(core: &Core, command_buffer: vk::CommandBuffer, meshes: &[&ManagedMesh]) {
     for mesh in meshes {
         unsafe {
             core.device.cmd_bind_vertex_buffers(

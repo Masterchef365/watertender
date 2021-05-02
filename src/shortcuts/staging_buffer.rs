@@ -1,8 +1,8 @@
 use crate::shortcuts::{memory::UsageFlags, ManagedBuffer, ManagedImage};
 use crate::SharedCore;
 use anyhow::Result;
-use bytemuck::Pod;
 use erupt::vk;
+use bytemuck::Pod;
 
 pub struct StagingBuffer {
     buffer: ManagedBuffer,
@@ -21,15 +21,29 @@ impl StagingBuffer {
         })
     }
 
+    /// Warning: Assumes an inactive command buffer
+    pub fn upload_buffer_pod<T: Pod>(
+        &mut self,
+        command_buffer: vk::CommandBuffer,
+        usage: vk::BufferUsageFlags,
+        data: &[T],
+    ) -> Result<ManagedBuffer> {
+        let ci = vk::BufferCreateInfoBuilder::new()
+            .size(std::mem::size_of_val(data) as _)
+            .usage(usage)
+            .sharing_mode(vk::SharingMode::EXCLUSIVE);
+        self.upload_buffer_bytes(command_buffer, ci, bytemuck::cast_slice(data))
+    }
+    
     // TODO: Make a batched upload option? (So that you don't have to do a million queue idles...
     // TODO: This should also probably use a transfer queue...
     // TODO: Multi-part uploads for BIG data?
     /// Warning: Assumes an inactive command buffer
-    pub fn upload_buffer<T: Pod>(
+    pub fn upload_buffer_bytes(
         &mut self,
         command_buffer: vk::CommandBuffer,
         mut ci: vk::BufferCreateInfoBuilder<'static>,
-        data: &[T],
+        data: &[u8],
     ) -> Result<ManagedBuffer> {
         // Expand our internal buffer to match the size of the data to be uploaded
         if ci.size > self.current_size {
@@ -145,7 +159,7 @@ impl StagingBuffer {
         }
 
         // Write to the staging buffer
-        self.buffer.write_bytes(0, bytemuck::cast_slice(data))?;
+        self.buffer.write_bytes(0, data)?;
 
         // Create the final buffer
         let gpu_image = ManagedImage::new(self.core.clone(), ci, UsageFlags::FAST_DEVICE_ACCESS)?;
