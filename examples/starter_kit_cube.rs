@@ -118,7 +118,7 @@ impl MainLoop for App {
             draw_meshes(
                 core,
                 command_buffer,
-                std::slice::from_ref(&self.rainbow_cube),
+                std::slice::from_ref(&&self.rainbow_cube),
             );
         }
 
