@@ -1,5 +1,5 @@
 use crate::shortcuts::{
-    create_render_pass, launch, FramebufferManager, StagingBuffer, Synchronization,
+    create_render_pass, launch, FramebufferManager, StagingBuffer, Synchronization, max_samples,
 };
 use crate::{AppInfo, Frame, Platform, PlatformEvent, SharedCore, SyncMainLoop};
 use anyhow::Result;
@@ -14,6 +14,7 @@ pub struct StarterKit {
     pub render_pass: vk::RenderPass,
     pub staging_buffer: StagingBuffer,
     pub command_buffers: Vec<vk::CommandBuffer>,
+    pub msaa_samples: vk::SampleCountFlagBits,
     pub core: SharedCore,
     pub frame: usize,
 }
@@ -33,8 +34,20 @@ pub struct CommandBufferStart {
     fence: vk::Fence,
 }
 
+pub struct Settings {
+    pub msaa_samples: u16,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Self {
+            msaa_samples: 4,
+        }
+    }
+}
+
 impl StarterKit {
-    pub fn new(core: SharedCore, platform: &mut Platform<'_>) -> Result<Self> {
+    pub fn new(core: SharedCore, platform: &mut Platform<'_>, settings: Settings) -> Result<Self> {
         // Frame-frame sync
         let sync = Synchronization::new(
             core.clone(),
@@ -43,8 +56,9 @@ impl StarterKit {
         )?;
 
         // Freambuffer and render pass
-        let framebuffer = FramebufferManager::new(core.clone(), platform.is_vr());
-        let render_pass = create_render_pass(&core, platform.is_vr())?;
+        let msaa_samples = max_samples(&core, settings.msaa_samples);
+        let framebuffer = FramebufferManager::new(core.clone(), platform.is_vr(), msaa_samples);
+        let render_pass = create_render_pass(&core, platform.is_vr(), msaa_samples)?;
 
         // Command pool
         let create_info = vk::CommandPoolCreateInfoBuilder::new()
@@ -66,6 +80,7 @@ impl StarterKit {
         let staging_buffer = StagingBuffer::new(core.clone())?;
 
         Ok(Self {
+            msaa_samples,
             staging_buffer,
             sync,
             command_buffers,
@@ -106,6 +121,11 @@ impl StarterKit {
                     depth_stencil: vk::ClearDepthStencilValue {
                         depth: 1.0,
                         stencil: 0,
+                    },
+                },
+                vk::ClearValue {
+                    color: vk::ClearColorValue {
+                        float32: [0.0, 0.0, 0.0, 1.0],
                     },
                 },
             ];

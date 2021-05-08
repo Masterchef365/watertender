@@ -36,7 +36,7 @@ unsafe impl bytemuck::Pod for SceneData {}
 
 impl MainLoop for App {
     fn new(core: &SharedCore, mut platform: Platform<'_>) -> Result<Self> {
-        let mut starter_kit = StarterKit::new(core.clone(), &mut platform)?;
+        let mut starter_kit = StarterKit::new(core.clone(), &mut platform, Default::default())?;
 
         // Camera
         let camera = MultiPlatformCamera::new(&mut platform);
@@ -67,6 +67,7 @@ impl MainLoop for App {
             vk::PrimitiveTopology::TRIANGLE_LIST,
             starter_kit.render_pass,
             pipeline_layout,
+            starter_kit.msaa_samples,
         )?;
 
         // Mesh uploads
@@ -118,7 +119,7 @@ impl MainLoop for App {
             draw_meshes(
                 core,
                 command_buffer,
-                std::slice::from_ref(&self.rainbow_cube),
+                std::slice::from_ref(&&self.rainbow_cube),
             );
         }
 

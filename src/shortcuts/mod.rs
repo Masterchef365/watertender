@@ -1,7 +1,7 @@
 mod synchronization;
 pub use synchronization::Synchronization;
 mod framebuffer_mgr;
-pub use framebuffer_mgr::FramebufferManager;
+pub use framebuffer_mgr::{FramebufferManager, max_samples};
 mod render_pass;
 pub use render_pass::create_render_pass;
 pub mod memory;

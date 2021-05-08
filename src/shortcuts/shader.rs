@@ -12,6 +12,7 @@ pub fn shader(
     primitive: vk::PrimitiveTopology,
     render_pass: vk::RenderPass,
     pipeline_layout: vk::PipelineLayout,
+    msaa_samples: vk::SampleCountFlagBits,
 ) -> Result<vk::Pipeline> {
     // Create shader modules
     let vert_decoded = utils::decode_spv(vertex_src)?;
@@ -62,8 +63,8 @@ pub fn shader(
         .depth_clamp_enable(false);
 
     let multisampling = vk::PipelineMultisampleStateCreateInfoBuilder::new()
-        .sample_shading_enable(false)
-        .rasterization_samples(vk::SampleCountFlagBits::_1);
+        .rasterization_samples(msaa_samples)
+        .sample_shading_enable(false);
 
     let color_blend_attachments = [vk::PipelineColorBlendAttachmentStateBuilder::new()
         .color_write_mask(
