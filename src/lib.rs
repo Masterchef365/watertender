@@ -61,6 +61,7 @@ pub mod prelude {
         staging_buffer::StagingBuffer, 
         synchronization::Synchronization,
         mesh::{ManagedMesh, upload_mesh, draw_meshes},
+        memory::{ManagedImage, ManagedBuffer},
         starter_kit::{self, launch, StarterKit},
         frame_data_ubo::FrameDataUbo,
         app_info::AppInfo,

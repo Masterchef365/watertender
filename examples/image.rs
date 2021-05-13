@@ -1,14 +1,6 @@
 use anyhow::{Context, Result};
-use shortcuts::{
-    launch,
-    memory::ManagedImage,
-    mesh::*,
-    shader,
-    starter_kit::{self, StarterKit},
-    FrameDataUbo, MultiPlatformCamera, Vertex,
-};
 use std::path::Path;
-use watertender::*;
+use watertender::prelude::*;
 
 struct App {
     descriptor_set: vk::DescriptorSet,
@@ -84,7 +76,7 @@ impl MainLoop for App {
             unsafe { core.device.allocate_descriptor_sets(&create_info) }.result()?[0];
 
         // Scene data
-        let scene_ubo = FrameDataUbo::new(core.clone(), starter_kit::FRAMES_IN_FLIGHT)?;
+        let scene_ubo = FrameDataUbo::new(core.clone(), defaults::FRAMES_IN_FLIGHT)?;
 
         let descriptor_set_layouts = [scene_ubo.descriptor_set_layout(), descriptor_set_layout];
 
@@ -229,7 +221,7 @@ impl MainLoop for App {
             draw_meshes(
                 core,
                 command_buffer,
-                std::slice::from_ref(&self.rainbow_cube),
+                std::slice::from_ref(&&self.rainbow_cube),
             );
         }
 
