@@ -1,11 +1,10 @@
-use crate::shortcuts::{
-    create_render_pass, launch, FramebufferManager, StagingBuffer, Synchronization, max_samples,
-};
-use crate::{AppInfo, Frame, Platform, PlatformEvent, SharedCore, SyncMainLoop};
+use crate::app_info::AppInfo;
+use crate::mainloop::{Frame, Platform, PlatformEvent, SyncMainLoop};
+use crate::{render_pass::create_render_pass, framebuffer_mgr::{FramebufferManager, max_samples}, staging_buffer::StagingBuffer, synchronization::Synchronization};
+use crate::SharedCore;
 use anyhow::Result;
 use erupt::vk;
-
-pub const FRAMES_IN_FLIGHT: usize = 2;
+use crate::defaults::FRAMES_IN_FLIGHT;
 
 /// The StarterKit is a collection of commonly used utilities and code, and is made out of other shortcuts.
 pub struct StarterKit {
@@ -17,6 +16,16 @@ pub struct StarterKit {
     pub msaa_samples: vk::SampleCountFlagBits,
     pub core: SharedCore,
     pub frame: usize,
+}
+
+/// Launch a mainloop, and change platform depending on a boolean
+#[cfg(all(feature = "winit", feature = "openxr"))]
+pub fn launch<M: SyncMainLoop + 'static>(info: AppInfo, vr: bool) -> anyhow::Result<()> {
+    if vr {
+        crate::openxr_backend::launch::<M>(info)
+    } else {
+        crate::winit_backend::launch::<M>(info)
+    }
 }
 
 /// Run the main loop with validation, and if any command

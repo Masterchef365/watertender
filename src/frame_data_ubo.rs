@@ -1,4 +1,4 @@
-use crate::shortcuts::{memory, ManagedBuffer};
+use crate::{memory, memory::ManagedBuffer};
 use crate::SharedCore;
 use anyhow::Result;
 use bytemuck::Pod;
@@ -36,7 +36,7 @@ impl<T: Pod> FrameDataUbo<T> {
             .binding(binding)
             .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
             .descriptor_count(1)
-            .stage_flags(vk::ShaderStageFlags::VERTEX)];
+            .stage_flags(vk::ShaderStageFlags::ALL_GRAPHICS)];
 
         let descriptor_set_layout_ci =
             vk::DescriptorSetLayoutCreateInfoBuilder::new().bindings(&bindings);

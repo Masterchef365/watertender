@@ -1,4 +1,9 @@
-use crate::{AppInfo, Core, MainLoop, Platform, PlatformEvent, PlatformReturn, SharedCore};
+use crate::{
+    app_info::{engine_version, AppInfo},
+    mainloop::{Frame, MainLoop, Platform, PlatformEvent, PlatformReturn},
+    defaults::COLOR_FORMAT,
+    Core, SharedCore,
+};
 use anyhow::{bail, ensure, Context, Result};
 use erupt::{cstr, vk, DeviceLoader, EntryLoader, InstanceLoader};
 use gpu_alloc::{self, GpuAllocator};
@@ -118,7 +123,7 @@ pub fn launch<M: MainLoop>(info: AppInfo) -> Result<()> {
 
         // Run the app
         let ret = app.frame(
-            crate::Frame { swapchain_index },
+            Frame { swapchain_index },
             &core,
             Platform::OpenXr {
                 xr_core: &xr_core,
@@ -127,6 +132,7 @@ pub fn launch<M: MainLoop>(info: AppInfo) -> Result<()> {
         )?;
         let views = match ret {
             PlatformReturn::OpenXr(v) => v,
+            #[allow(unused)]
             _ => bail!("Wrong platform return"),
         };
 
@@ -160,7 +166,7 @@ fn build_cores(
             application_name: &info.name,
             application_version: info.version,
             engine_name: crate::ENGINE_NAME,
-            engine_version: crate::engine_version(),
+            engine_version: engine_version(),
         },
         &enabled_extensions,
         &[],
@@ -207,7 +213,7 @@ fn build_cores(
         .application_name(&application_name)
         .application_version(info.version)
         .engine_name(&engine_name)
-        .engine_version(crate::engine_version())
+        .engine_version(engine_version())
         .api_version(info.api_version);
 
     // Instance and device layers and extensions
@@ -501,7 +507,7 @@ impl Swapchain {
                 create_flags: xr::SwapchainCreateFlags::EMPTY,
                 usage_flags: xr::SwapchainUsageFlags::COLOR_ATTACHMENT
                     | xr::SwapchainUsageFlags::SAMPLED,
-                format: crate::COLOR_FORMAT.0 as _,
+                format: COLOR_FORMAT.0 as _,
                 sample_count: 1,
                 width: extent.width,
                 height: extent.height,
