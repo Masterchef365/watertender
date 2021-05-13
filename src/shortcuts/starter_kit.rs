@@ -1,7 +1,9 @@
 use crate::shortcuts::{
-    create_render_pass, launch, FramebufferManager, StagingBuffer, Synchronization,
+    create_render_pass, FramebufferManager, StagingBuffer, Synchronization,
 };
-use crate::{AppInfo, Frame, Platform, PlatformEvent, SharedCore, SyncMainLoop};
+use crate::SharedCore;
+use crate::mainloop::{Frame, Platform, PlatformEvent, SyncMainLoop};
+use crate::app_info::AppInfo;
 use anyhow::Result;
 use erupt::vk;
 
@@ -16,6 +18,19 @@ pub struct StarterKit {
     pub command_buffers: Vec<vk::CommandBuffer>,
     pub core: SharedCore,
     pub frame: usize,
+}
+
+/// Launch a mainloop, and change platform depending on a boolean
+#[cfg(all(feature = "winit", feature = "openxr"))]
+pub fn launch<M: SyncMainLoop + 'static>(
+    info: AppInfo,
+    vr: bool,
+) -> anyhow::Result<()> {
+    if vr {
+        crate::openxr_backend::launch::<M>(info)
+    } else {
+        crate::winit_backend::launch::<M>(info)
+    }
 }
 
 /// Run the main loop with validation, and if any command

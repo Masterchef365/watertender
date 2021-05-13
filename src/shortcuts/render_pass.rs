@@ -1,13 +1,15 @@
 use crate::Core;
 use anyhow::Result;
 use erupt::{vk, vk1_1};
+use crate::shortcuts::framebuffer_mgr::DEPTH_FORMAT;
+use crate::mainloop::COLOR_FORMAT;
 
 pub fn create_render_pass(core: &Core, vr: bool) -> Result<vk::RenderPass> {
     let device = &core.device;
 
     // Render pass
     let color_attachment = vk::AttachmentDescriptionBuilder::new()
-        .format(crate::COLOR_FORMAT)
+        .format(COLOR_FORMAT)
         .samples(vk::SampleCountFlagBits::_1)
         .load_op(vk::AttachmentLoadOp::CLEAR)
         .store_op(vk::AttachmentStoreOp::STORE)
@@ -21,7 +23,7 @@ pub fn create_render_pass(core: &Core, vr: bool) -> Result<vk::RenderPass> {
         });
 
     let depth_attachment = vk::AttachmentDescriptionBuilder::new()
-        .format(crate::DEPTH_FORMAT)
+        .format(DEPTH_FORMAT)
         .samples(vk::SampleCountFlagBits::_1)
         .load_op(vk::AttachmentLoadOp::CLEAR)
         .store_op(vk::AttachmentStoreOp::DONT_CARE)

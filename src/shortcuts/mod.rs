@@ -32,16 +32,3 @@ pub use multi_platform_camera::MultiPlatformCamera;
 
 #[cfg(all(feature = "nalgebra", feature = "openxr", feature = "winit"))]
 pub mod starter_kit;
-
-/// Launch a mainloop, and change platform depending on a boolean
-#[cfg(all(feature = "winit", feature = "openxr"))]
-pub fn launch<M: crate::SyncMainLoop + 'static>(
-    info: crate::AppInfo,
-    vr: bool,
-) -> anyhow::Result<()> {
-    if vr {
-        crate::openxr_backend::launch::<M>(info)
-    } else {
-        crate::winit_backend::launch::<M>(info)
-    }
-}

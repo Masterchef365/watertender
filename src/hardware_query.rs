@@ -1,6 +1,7 @@
 use anyhow::Result;
 use erupt::{extensions::khr_surface, vk1_0 as vk, InstanceLoader};
 use std::{ffi::CStr, os::raw::c_char};
+use crate::mainloop::{COLOR_FORMAT, COLOR_SPACE};
 
 /// Hardware selection for Winit backend
 #[derive(Debug)]
@@ -48,8 +49,8 @@ impl HardwareSelection {
                 let format = match formats
                     .iter()
                     .find(|surface_format| {
-                        surface_format.format == crate::COLOR_FORMAT
-                            && surface_format.color_space == crate::COLOR_SPACE
+                        surface_format.format == COLOR_FORMAT
+                            && surface_format.color_space == COLOR_SPACE
                     })
                     .or_else(|| formats.get(0))
                 {

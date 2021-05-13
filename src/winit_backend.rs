@@ -1,5 +1,9 @@
+use crate::{
+    app_info::{AppInfo, engine_version},
+    mainloop::{Platform, PlatformEvent, SyncMainLoop, Frame, COLOR_FORMAT, COLOR_SPACE},
+    Core, SharedCore,
+};
 use crate::hardware_query::HardwareSelection;
-use crate::{AppInfo, Core, Frame, Platform, PlatformEvent, SharedCore, SyncMainLoop};
 use anyhow::{Context, Result};
 use erupt::{
     cstr,
@@ -135,7 +139,7 @@ pub fn build_core(info: AppInfo, window: &Window) -> Result<(Core, SurfaceKHR, P
         .application_name(&app_name)
         .application_version(info.version)
         .engine_name(&engine_name)
-        .engine_version(crate::engine_version())
+        .engine_version(engine_version())
         .api_version(info.api_version);
 
     // Instance and device layers and extensions
@@ -289,8 +293,8 @@ impl Swapchain {
         let create_info = khr_swapchain::SwapchainCreateInfoKHRBuilder::new()
             .surface(surface)
             .min_image_count(image_count)
-            .image_format(crate::COLOR_FORMAT)
-            .image_color_space(crate::COLOR_SPACE)
+            .image_format(COLOR_FORMAT)
+            .image_color_space(COLOR_SPACE)
             .image_extent(surface_caps.current_extent)
             .image_array_layers(1)
             .image_usage(vk::ImageUsageFlags::COLOR_ATTACHMENT)

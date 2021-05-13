@@ -50,7 +50,7 @@ impl MainLoop for App {
             matches!(platform, Platform::Winit { .. }),
         )?;
 
-        // Freambuffer and render pass
+        // Framebuffer and render pass
         let framebuffer = FramebufferManager::new(core.clone(), platform.is_vr());
         let render_pass = create_render_pass(&core, platform.is_vr())?;
 

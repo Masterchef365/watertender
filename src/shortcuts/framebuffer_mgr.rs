@@ -4,6 +4,9 @@ use anyhow::Result;
 use erupt::vk;
 use gpu_alloc::UsageFlags;
 
+/// Used in shortcuts, to make things easier
+pub const DEPTH_FORMAT: vk::Format = vk::Format::D32_SFLOAT;
+
 /// Framebuffer manager, includes depth image and color image views
 pub struct FramebufferManager {
     internals: Option<Internals>,
@@ -69,7 +72,7 @@ impl FramebufferManager {
             )
             .mip_levels(1)
             .array_layers(layers)
-            .format(crate::DEPTH_FORMAT)
+            .format(DEPTH_FORMAT)
             .tiling(vk::ImageTiling::OPTIMAL)
             .initial_layout(vk::ImageLayout::UNDEFINED)
             .usage(vk::ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT)
@@ -85,7 +88,7 @@ impl FramebufferManager {
         let create_info = vk::ImageViewCreateInfoBuilder::new()
             .image(depth_image.instance())
             .view_type(vk::ImageViewType::_2D)
-            .format(crate::DEPTH_FORMAT)
+            .format(DEPTH_FORMAT)
             .subresource_range(
                 vk::ImageSubresourceRangeBuilder::new()
                     .aspect_mask(vk::ImageAspectFlags::DEPTH)
@@ -105,7 +108,7 @@ impl FramebufferManager {
                 let create_info = vk::ImageViewCreateInfoBuilder::new()
                     .image(image)
                     .view_type(vk::ImageViewType::_2D)
-                    .format(crate::COLOR_FORMAT)
+                    .format(crate::mainloop::COLOR_FORMAT)
                     .components(vk::ComponentMapping {
                         r: vk::ComponentSwizzle::IDENTITY,
                         g: vk::ComponentSwizzle::IDENTITY,
