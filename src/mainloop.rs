@@ -1,4 +1,4 @@
-use crate::{openxr_backend, Core, SharedCore};
+use crate::{Core, SharedCore};
 use anyhow::Result;
 use erupt::vk;
 
@@ -51,7 +51,7 @@ pub enum Platform<'a> {
     },
     #[cfg(feature = "openxr")]
     OpenXr {
-        xr_core: &'a openxr_backend::XrCore,
+        xr_core: &'a crate::openxr_backend::XrCore,
         frame_state: Option<openxr::FrameState>,
     },
 }
@@ -75,8 +75,9 @@ pub enum PlatformReturn {
 impl Platform<'_> {
     pub fn is_vr(&self) -> bool {
         match self {
-            Platform::Winit { .. } => false,
+            #[cfg(feature = "openxr")]
             Platform::OpenXr { .. } => true,
+            _ => false,
         }
     }
 }

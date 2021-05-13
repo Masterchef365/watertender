@@ -1,10 +1,5 @@
 use anyhow::Result;
-use shortcuts::{
-    create_render_pass, launch, mesh::*, shader, FrameDataUbo, FramebufferManager,
-    MultiPlatformCamera, StagingBuffer, Synchronization, Vertex,
-};
-
-use watertender::*;
+use watertender::prelude::*;
 
 const FRAMES_IN_FLIGHT: usize = 2;
 
