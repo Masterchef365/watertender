@@ -2,7 +2,7 @@ use crate::hardware_query::HardwareSelection;
 use crate::{
     app_info::{engine_version, AppInfo},
     mainloop::{Frame, Platform, PlatformEvent, SyncMainLoop},
-    shortcuts::defaults::{COLOR_FORMAT, COLOR_SPACE},
+    defaults::{COLOR_FORMAT, COLOR_SPACE},
     Core, SharedCore,
 };
 use anyhow::{Context, Result};

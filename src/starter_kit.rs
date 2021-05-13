@@ -1,6 +1,6 @@
 use crate::app_info::AppInfo;
 use crate::mainloop::{Frame, Platform, PlatformEvent, SyncMainLoop};
-use crate::shortcuts::{create_render_pass, FramebufferManager, StagingBuffer, Synchronization};
+use crate::{render_pass::create_render_pass, framebuffer_mgr::FramebufferManager, staging_buffer::StagingBuffer, synchronization::Synchronization};
 use crate::SharedCore;
 use anyhow::Result;
 use erupt::vk;

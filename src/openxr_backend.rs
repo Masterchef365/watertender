@@ -1,7 +1,7 @@
 use crate::{
     app_info::{engine_version, AppInfo},
     mainloop::{Frame, MainLoop, Platform, PlatformEvent, PlatformReturn},
-    shortcuts::defaults::COLOR_FORMAT,
+    defaults::COLOR_FORMAT,
     Core, SharedCore,
 };
 use anyhow::{bail, ensure, Context, Result};
@@ -132,6 +132,7 @@ pub fn launch<M: MainLoop>(info: AppInfo) -> Result<()> {
         )?;
         let views = match ret {
             PlatformReturn::OpenXr(v) => v,
+            #[allow(unused)]
             _ => bail!("Wrong platform return"),
         };
 

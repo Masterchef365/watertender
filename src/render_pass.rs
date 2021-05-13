@@ -1,4 +1,4 @@
-use crate::shortcuts::defaults::{COLOR_FORMAT, DEPTH_FORMAT};
+use crate::defaults::{COLOR_FORMAT, DEPTH_FORMAT};
 use crate::Core;
 use anyhow::Result;
 use erupt::{vk, vk1_1};

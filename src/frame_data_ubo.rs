@@ -1,4 +1,4 @@
-use crate::shortcuts::{memory, ManagedBuffer};
+use crate::{memory, memory::ManagedBuffer};
 use crate::SharedCore;
 use anyhow::Result;
 use bytemuck::Pod;

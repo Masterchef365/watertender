@@ -1,4 +1,4 @@
-use crate::shortcuts::Vertex;
+use crate::vertex::Vertex;
 use crate::Core;
 use anyhow::Result;
 use erupt::{utils, vk};

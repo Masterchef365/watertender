@@ -1,6 +1,6 @@
 use crate::mainloop::{Platform, PlatformEvent, PlatformReturn};
-use crate::shortcuts::winit_arcball::WinitArcBall;
-use crate::shortcuts::xr_camera;
+use crate::winit_arcball::WinitArcBall;
+use crate::xr_camera;
 use anyhow::Result;
 
 pub enum MultiPlatformCamera {

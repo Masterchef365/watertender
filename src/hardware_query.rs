@@ -1,4 +1,4 @@
-use crate::shortcuts::defaults::{COLOR_FORMAT, COLOR_SPACE};
+use crate::defaults::{COLOR_FORMAT, COLOR_SPACE};
 use anyhow::Result;
 use erupt::{extensions::khr_surface, vk1_0 as vk, InstanceLoader};
 use std::{ffi::CStr, os::raw::c_char};

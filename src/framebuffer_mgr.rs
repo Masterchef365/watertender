@@ -1,6 +1,6 @@
-use crate::shortcuts::{
+use crate::{
     defaults::{COLOR_FORMAT, DEPTH_FORMAT},
-    ManagedImage,
+    memory::ManagedImage,
 };
 use crate::{Core, SharedCore};
 use anyhow::Result;

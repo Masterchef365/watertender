@@ -1,4 +1,4 @@
-use crate::shortcuts::{ManagedBuffer, StagingBuffer, Vertex};
+use crate::{memory::ManagedBuffer, staging_buffer::StagingBuffer, vertex::Vertex};
 use crate::Core;
 use anyhow::Result;
 use erupt::vk;

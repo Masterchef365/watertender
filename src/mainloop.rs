@@ -77,6 +77,7 @@ impl Platform<'_> {
         match self {
             #[cfg(feature = "openxr")]
             Platform::OpenXr { .. } => true,
+            #[allow(unused)]
             _ => false,
         }
     }
