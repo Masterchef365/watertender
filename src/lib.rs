@@ -5,36 +5,39 @@ use erupt::{utils::loading::DefaultEntryLoader, DeviceLoader, InstanceLoader};
 use gpu_alloc::GpuAllocator;
 use std::sync::{Arc, Mutex};
 
-pub(crate) mod app_info;
-pub(crate) mod core;
+mod alloc_helpers;
+mod app_info;
+mod core;
+mod hardware_query;
 
 #[cfg(all(feature = "openxr", feature = "winit"))]
-pub(crate) mod mainloop;
+mod mainloop;
 
 #[cfg(feature = "openxr")]
-pub(crate) mod openxr_backend;
+pub mod openxr_backend;
 #[cfg(feature = "openxr")]
 pub use openxr;
 
 #[cfg(feature = "winit")]
-pub(crate) mod winit_backend;
+pub mod winit_backend;
 #[cfg(feature = "winit")]
 pub use winit;
 
 #[cfg(feature = "nalgebra")]
 pub use nalgebra;
 
-mod alloc_helpers;
-mod hardware_query;
-pub(crate) mod shortcuts;
+pub mod shortcuts;
 
 /// Go figure
 pub const ENGINE_NAME: &str = "WaterTender";
 
-pub use {
-    app_info::AppInfo,
-    mainloop::{Frame, MainLoop, Platform, PlatformEvent, PlatformReturn, SyncMainLoop},
-};
+pub mod prelude {
+    #[cfg(all(feature = "openxr", feature = "winit"))]
+    pub use super::mainloop::{
+        Frame, MainLoop, Platform, PlatformEvent, PlatformReturn, SyncMainLoop,
+    };
+    pub use super::{app_info::AppInfo, hardware_query::HardwareSelection, Core, SharedCore};
+}
 
 /// A collection of commonly referenced Vulkan context
 pub struct Core {

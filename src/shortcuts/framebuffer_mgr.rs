@@ -1,11 +1,8 @@
-use crate::shortcuts::ManagedImage;
+use crate::shortcuts::{ManagedImage, defaults::{DEPTH_FORMAT, COLOR_FORMAT}};
 use crate::{Core, SharedCore};
 use anyhow::Result;
 use erupt::vk;
 use gpu_alloc::UsageFlags;
-
-/// Used in shortcuts, to make things easier
-pub const DEPTH_FORMAT: vk::Format = vk::Format::D32_SFLOAT;
 
 /// Framebuffer manager, includes depth image and color image views
 pub struct FramebufferManager {
@@ -108,7 +105,7 @@ impl FramebufferManager {
                 let create_info = vk::ImageViewCreateInfoBuilder::new()
                     .image(image)
                     .view_type(vk::ImageViewType::_2D)
-                    .format(crate::mainloop::COLOR_FORMAT)
+                    .format(COLOR_FORMAT)
                     .components(vk::ComponentMapping {
                         r: vk::ComponentSwizzle::IDENTITY,
                         g: vk::ComponentSwizzle::IDENTITY,

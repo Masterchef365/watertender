@@ -1,8 +1,7 @@
 use crate::Core;
 use anyhow::Result;
 use erupt::{vk, vk1_1};
-use crate::shortcuts::framebuffer_mgr::DEPTH_FORMAT;
-use crate::mainloop::COLOR_FORMAT;
+use crate::shortcuts::defaults::{COLOR_FORMAT, DEPTH_FORMAT};
 
 pub fn create_render_pass(core: &Core, vr: bool) -> Result<vk::RenderPass> {
     let device = &core.device;

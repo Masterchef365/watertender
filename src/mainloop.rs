@@ -1,13 +1,6 @@
-use erupt::{vk, extensions::khr_surface::ColorSpaceKHR};
+use erupt::vk;
 use anyhow::Result;
 use crate::{openxr_backend, Core, SharedCore};
-
-/// If you need a different swapchain format, modify the source or get a different engine. I draw
-/// the line at color format for presentation, sorry.
-pub const COLOR_FORMAT: vk::Format = vk::Format::B8G8R8A8_SRGB;
-
-/// Used in shortcuts, to make things easier
-pub const COLOR_SPACE: ColorSpaceKHR = ColorSpaceKHR::SRGB_NONLINEAR_KHR;
 
 /// Interface to the gpu's commands
 pub struct Frame {

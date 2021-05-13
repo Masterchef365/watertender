@@ -1,6 +1,7 @@
 use crate::{
     app_info::{AppInfo, engine_version},
-    mainloop::{Platform, PlatformEvent, SyncMainLoop, Frame, COLOR_FORMAT, COLOR_SPACE},
+    mainloop::{Platform, PlatformEvent, SyncMainLoop, Frame},
+    shortcuts::defaults::{COLOR_FORMAT, COLOR_SPACE},
     Core, SharedCore,
 };
 use crate::hardware_query::HardwareSelection;

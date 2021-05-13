@@ -1,6 +1,7 @@
 use crate::{
     app_info::{AppInfo, engine_version},
-    mainloop::{Frame, MainLoop, Platform, PlatformEvent, PlatformReturn, COLOR_FORMAT},
+    mainloop::{Frame, MainLoop, Platform, PlatformEvent, PlatformReturn},
+    shortcuts::defaults::COLOR_FORMAT,
     Core, SharedCore,
 };
 use anyhow::{bail, ensure, Context, Result};

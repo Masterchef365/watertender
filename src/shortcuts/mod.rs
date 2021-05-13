@@ -15,6 +15,7 @@ mod staging_buffer;
 pub use staging_buffer::StagingBuffer;
 mod frame_data_ubo;
 pub use frame_data_ubo::FrameDataUbo;
+pub mod defaults;
 
 #[cfg(feature = "nalgebra")]
 pub mod arcball;
