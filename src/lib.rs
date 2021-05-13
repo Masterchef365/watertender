@@ -12,19 +12,6 @@ pub mod hardware_query;
 pub mod memory;
 pub mod mesh;
 
-pub mod prelude {
-    pub use super::{
-        framebuffer_mgr::FramebufferManager,
-        frame_data_ubo::FrameDataUbo,
-        memory::{buffer_memory_req, image_memory_req, ManagedBuffer, ManagedImage, MemoryBlock},
-        render_pass::create_render_pass,
-        shader::shader,
-        staging_buffer::StagingBuffer,
-        synchronization::Synchronization,
-        vertex::Vertex,
-    };
-}
-
 #[cfg(feature = "nalgebra")]
 pub mod arcball;
 
@@ -66,3 +53,27 @@ pub use nalgebra;
 pub const ENGINE_NAME: &str = "WaterTender";
 
 pub use crate::core::{Core, SharedCore};
+
+pub mod prelude {
+    pub use super::{
+        render_pass::create_render_pass, 
+        framebuffer_mgr::FramebufferManager, 
+        staging_buffer::StagingBuffer, 
+        synchronization::Synchronization,
+        mesh::{ManagedMesh, upload_mesh, draw_meshes},
+        starter_kit::{self, launch, StarterKit},
+        frame_data_ubo::FrameDataUbo,
+        app_info::AppInfo,
+        vertex::Vertex,
+        shader::shader,
+        Core, SharedCore,
+        defaults,
+    };
+    pub use erupt::vk;
+
+    #[cfg(any(feature = "openxr", feature = "winit"))]
+    pub use super::mainloop::{MainLoop, Platform, PlatformReturn, PlatformEvent, SyncMainLoop, Frame};
+
+    #[cfg(all(feature = "nalgebra", any(feature = "openxr", feature = "winit")))]
+    pub use super::multi_platform_camera::MultiPlatformCamera;
+}

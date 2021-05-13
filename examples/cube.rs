@@ -1,23 +1,15 @@
-use anyhow::Result;
 use watertender::prelude::*;
 
-const FRAMES_IN_FLIGHT: usize = 2;
+use anyhow::Result;
 
 struct App {
-    // For just this scene
     rainbow_cube: ManagedMesh,
     pipeline: vk::Pipeline,
     pipeline_layout: vk::PipelineLayout,
     scene_ubo: FrameDataUbo<SceneData>,
-    anim: f32,
-
-    // Basically internals
-    framebuffer: FramebufferManager,
-    sync: Synchronization,
-    render_pass: vk::RenderPass,
-    command_buffers: Vec<vk::CommandBuffer>,
     camera: MultiPlatformCamera,
-    frame: usize,
+    anim: f32,
+    starter_kit: StarterKit,
 }
 
 fn main() -> Result<()> {
@@ -38,22 +30,13 @@ unsafe impl bytemuck::Pod for SceneData {}
 
 impl MainLoop for App {
     fn new(core: &SharedCore, mut platform: Platform<'_>) -> Result<Self> {
-        // Frame-frame sync
-        let sync = Synchronization::new(
-            core.clone(),
-            FRAMES_IN_FLIGHT,
-            matches!(platform, Platform::Winit { .. }),
-        )?;
-
-        // Framebuffer and render pass
-        let framebuffer = FramebufferManager::new(core.clone(), platform.is_vr());
-        let render_pass = create_render_pass(&core, platform.is_vr())?;
+        let mut starter_kit = StarterKit::new(core.clone(), &mut platform)?;
 
         // Camera
         let camera = MultiPlatformCamera::new(&mut platform);
 
         // Scene data
-        let scene_ubo = FrameDataUbo::new(core.clone(), FRAMES_IN_FLIGHT)?;
+        let scene_ubo = FrameDataUbo::new(core.clone(), defaults::FRAMES_IN_FLIGHT)?;
 
         let descriptor_set_layouts = [scene_ubo.descriptor_set_layout()];
 
@@ -76,44 +59,27 @@ impl MainLoop for App {
             include_bytes!("unlit.vert.spv"),
             include_bytes!("unlit.frag.spv"),
             vk::PrimitiveTopology::TRIANGLE_LIST,
-            render_pass,
+            starter_kit.render_pass,
             pipeline_layout,
         )?;
 
-        // Command pool
-        let create_info = vk::CommandPoolCreateInfoBuilder::new()
-            .flags(vk::CommandPoolCreateFlags::RESET_COMMAND_BUFFER)
-            .queue_family_index(core.queue_family);
-        let command_pool =
-            unsafe { core.device.create_command_pool(&create_info, None, None) }.result()?;
-
-        // Allocate command buffers
-        let allocate_info = vk::CommandBufferAllocateInfoBuilder::new()
-            .command_pool(command_pool)
-            .level(vk::CommandBufferLevel::PRIMARY)
-            .command_buffer_count(FRAMES_IN_FLIGHT as u32);
-
-        let command_buffers =
-            unsafe { core.device.allocate_command_buffers(&allocate_info) }.result()?;
-
         // Mesh uploads
-        let mut staging_buffer = StagingBuffer::new(core.clone())?;
         let (vertices, indices) = rainbow_cube();
-        let rainbow_cube =
-            upload_mesh(&mut staging_buffer, command_buffers[0], &vertices, &indices)?;
+        let rainbow_cube = upload_mesh(
+            &mut starter_kit.staging_buffer,
+            starter_kit.command_buffers[0],
+            &vertices,
+            &indices,
+        )?;
 
         Ok(Self {
+            camera,
             anim: 0.0,
             pipeline_layout,
             scene_ubo,
             rainbow_cube,
-            sync,
-            command_buffers,
             pipeline,
-            framebuffer,
-            render_pass,
-            camera,
-            frame: 0,
+            starter_kit,
         })
     }
 
@@ -123,73 +89,16 @@ impl MainLoop for App {
         core: &SharedCore,
         platform: Platform<'_>,
     ) -> Result<PlatformReturn> {
-        let fence = self.sync.sync(frame.swapchain_index, self.frame)?;
-
-        let command_buffer = self.command_buffers[self.frame];
-        let framebuffer = self.framebuffer.frame(frame.swapchain_index);
+        let cmd = self.starter_kit.begin_command_buffer(frame)?;
+        let command_buffer = cmd.command_buffer;
 
         unsafe {
-            core.device
-                .reset_command_buffer(command_buffer, None)
-                .result()?;
-
-            let begin_info = vk::CommandBufferBeginInfoBuilder::new();
-            core.device
-                .begin_command_buffer(command_buffer, &begin_info)
-                .result()?;
-
-            // Set render pass
-            let clear_values = [
-                vk::ClearValue {
-                    color: vk::ClearColorValue {
-                        float32: [0.0, 0.0, 0.0, 1.0],
-                    },
-                },
-                vk::ClearValue {
-                    depth_stencil: vk::ClearDepthStencilValue {
-                        depth: 1.0,
-                        stencil: 0,
-                    },
-                },
-            ];
-
-            let begin_info = vk::RenderPassBeginInfoBuilder::new()
-                .framebuffer(framebuffer)
-                .render_pass(self.render_pass)
-                .render_area(vk::Rect2D {
-                    offset: vk::Offset2D { x: 0, y: 0 },
-                    extent: self.framebuffer.extent(),
-                })
-                .clear_values(&clear_values);
-
-            core.device.cmd_begin_render_pass(
-                command_buffer,
-                &begin_info,
-                vk::SubpassContents::INLINE,
-            );
-
-            let viewports = [vk::ViewportBuilder::new()
-                .x(0.0)
-                .y(0.0)
-                .width(self.framebuffer.extent().width as f32)
-                .height(self.framebuffer.extent().height as f32)
-                .min_depth(0.0)
-                .max_depth(1.0)];
-
-            let scissors = [vk::Rect2DBuilder::new()
-                .offset(vk::Offset2D { x: 0, y: 0 })
-                .extent(self.framebuffer.extent())];
-
-            core.device.cmd_set_viewport(command_buffer, 0, &viewports);
-
-            core.device.cmd_set_scissor(command_buffer, 0, &scissors);
-
             core.device.cmd_bind_descriptor_sets(
                 command_buffer,
                 vk::PipelineBindPoint::GRAPHICS,
                 self.pipeline_layout,
                 0,
-                &[self.scene_ubo.descriptor_set(self.frame)],
+                &[self.scene_ubo.descriptor_set(self.starter_kit.frame)],
                 &[],
             );
 
@@ -201,59 +110,30 @@ impl MainLoop for App {
             );
 
             draw_meshes(
-                &core,
+                core,
                 command_buffer,
-                std::slice::from_ref(&self.rainbow_cube),
+                std::slice::from_ref(&&self.rainbow_cube),
             );
-            // End draw cmds
-
-            core.device.cmd_end_render_pass(command_buffer);
-
-            core.device.end_command_buffer(command_buffer).result()?;
         }
 
         let (ret, cameras) = self.camera.get_matrices(platform)?;
 
-        // TODO: For cameras, put this JUST before the submit?
         self.scene_ubo.upload(
-            self.frame,
+            self.starter_kit.frame,
             &SceneData {
                 cameras,
                 anim: self.anim,
             },
         )?;
 
-        let command_buffers = [command_buffer];
-        if let Some((image_available, render_finished)) = self.sync.swapchain_sync(self.frame) {
-            let wait_semaphores = [image_available];
-            let signal_semaphores = [render_finished];
-            let submit_info = vk::SubmitInfoBuilder::new()
-                .wait_semaphores(&wait_semaphores)
-                .wait_dst_stage_mask(&[vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT])
-                .command_buffers(&command_buffers)
-                .signal_semaphores(&signal_semaphores);
-            unsafe {
-                core.device
-                    .queue_submit(core.queue, &[submit_info], Some(fence))
-                    .result()?;
-            }
-        } else {
-            let submit_info = vk::SubmitInfoBuilder::new().command_buffers(&command_buffers);
-            unsafe {
-                core.device
-                    .queue_submit(core.queue, &[submit_info], Some(fence))
-                    .result()?;
-            }
-        };
-
-        self.frame = (self.frame + 1) % FRAMES_IN_FLIGHT;
-        self.anim += 0.01;
+        // End draw cmds
+        self.starter_kit.end_command_buffer(cmd)?;
 
         Ok(ret)
     }
 
     fn swapchain_resize(&mut self, images: Vec<vk::Image>, extent: vk::Extent2D) -> Result<()> {
-        self.framebuffer.resize(images, extent, self.render_pass)
+        self.starter_kit.swapchain_resize(images, extent)
     }
 
     fn event(
@@ -263,35 +143,17 @@ impl MainLoop for App {
         mut platform: Platform<'_>,
     ) -> Result<()> {
         self.camera.handle_event(&mut event, &mut platform);
-        if let PlatformEvent::Winit(winit::event::Event::WindowEvent { event, .. }) = event {
-            if let winit::event::WindowEvent::CloseRequested = event {
-                if let Platform::Winit { control_flow, .. } = platform {
-                    *control_flow = winit::event_loop::ControlFlow::Exit;
-                }
-            }
-        }
+        starter_kit::close_when_asked(event, platform);
         Ok(())
     }
 }
 
 impl SyncMainLoop for App {
     fn winit_sync(&self) -> (vk::Semaphore, vk::Semaphore) {
-        self.sync
-            .swapchain_sync(self.frame)
-            .expect("khr_sync not set")
+        self.starter_kit.winit_sync()
     }
 }
 
-/*
-// Vertex buffer
-let vertices = vec![
-Vertex::new([-0.5, 0.5, 0.], [1., 0., 0.]),
-Vertex::new([0.5, 0.5, 0.], [0., 1., 0.]),
-Vertex::new([0.0, -1.0, 0.], [0., 0., 1.]),
-];
-
-let indices = vec![0, 1, 2];
-*/
 fn rainbow_cube() -> (Vec<Vertex>, Vec<u32>) {
     let vertices = vec![
         Vertex::new([-1.0, -1.0, -1.0], [0.0, 1.0, 1.0]),

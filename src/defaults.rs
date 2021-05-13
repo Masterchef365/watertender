@@ -10,3 +10,5 @@ pub const COLOR_FORMAT: vk::Format = vk::Format::B8G8R8A8_SRGB;
 
 /// Used in shortcuts, to make things easier
 pub const COLOR_SPACE: ColorSpaceKHR = ColorSpaceKHR::SRGB_NONLINEAR_KHR;
+
+pub const FRAMES_IN_FLIGHT: usize = 2;

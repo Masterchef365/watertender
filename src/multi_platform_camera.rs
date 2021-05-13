@@ -22,6 +22,7 @@ impl MultiPlatformCamera {
     pub fn get_matrices(&self, platform: Platform) -> Result<(PlatformReturn, [f32; 4 * 4 * 2])> {
         match (self, platform) {
             // Winit mode
+            #[cfg(feature = "winit")]
             (Self::Winit(winit_arcball), Platform::Winit { .. }) => {
                 let matrix = winit_arcball.matrix();
                 let mut data = [0.0; 32];
@@ -31,6 +32,7 @@ impl MultiPlatformCamera {
                 Ok((PlatformReturn::Winit, data))
             }
             // OpenXR mode
+            #[cfg(feature = "openxr")]
             (
                 Self::OpenXr,
                 Platform::OpenXr {

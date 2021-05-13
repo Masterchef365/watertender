@@ -4,8 +4,7 @@ use crate::{render_pass::create_render_pass, framebuffer_mgr::FramebufferManager
 use crate::SharedCore;
 use anyhow::Result;
 use erupt::vk;
-
-pub const FRAMES_IN_FLIGHT: usize = 2;
+use crate::defaults::FRAMES_IN_FLIGHT;
 
 /// The StarterKit is a collection of commonly used utilities and code, and is made out of other shortcuts.
 pub struct StarterKit {
