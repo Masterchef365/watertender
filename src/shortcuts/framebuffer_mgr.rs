@@ -1,4 +1,7 @@
-use crate::shortcuts::{ManagedImage, defaults::{DEPTH_FORMAT, COLOR_FORMAT}};
+use crate::shortcuts::{
+    defaults::{COLOR_FORMAT, DEPTH_FORMAT},
+    ManagedImage,
+};
 use crate::{Core, SharedCore};
 use anyhow::Result;
 use erupt::vk;

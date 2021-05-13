@@ -1,5 +1,5 @@
-use erupt::vk;
 use anyhow::Result;
+use erupt::vk;
 
 /// Application info
 pub struct AppInfo {

@@ -1,5 +1,5 @@
 use crate::{
-    app_info::{AppInfo, engine_version},
+    app_info::{engine_version, AppInfo},
     mainloop::{Frame, MainLoop, Platform, PlatformEvent, PlatformReturn},
     shortcuts::defaults::COLOR_FORMAT,
     Core, SharedCore,

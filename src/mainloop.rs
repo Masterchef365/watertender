@@ -1,6 +1,6 @@
-use erupt::vk;
-use anyhow::Result;
 use crate::{openxr_backend, Core, SharedCore};
+use anyhow::Result;
+use erupt::vk;
 
 /// Interface to the gpu's commands
 pub struct Frame {

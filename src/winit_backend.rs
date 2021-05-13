@@ -1,10 +1,10 @@
+use crate::hardware_query::HardwareSelection;
 use crate::{
-    app_info::{AppInfo, engine_version},
-    mainloop::{Platform, PlatformEvent, SyncMainLoop, Frame},
+    app_info::{engine_version, AppInfo},
+    mainloop::{Frame, Platform, PlatformEvent, SyncMainLoop},
     shortcuts::defaults::{COLOR_FORMAT, COLOR_SPACE},
     Core, SharedCore,
 };
-use crate::hardware_query::HardwareSelection;
 use anyhow::{Context, Result};
 use erupt::{
     cstr,

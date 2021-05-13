@@ -1,8 +1,8 @@
 use crate::shortcuts::{memory::UsageFlags, ManagedBuffer, ManagedImage};
 use crate::SharedCore;
 use anyhow::Result;
-use erupt::vk;
 use bytemuck::Pod;
+use erupt::vk;
 
 pub struct StagingBuffer {
     buffer: ManagedBuffer,
@@ -34,7 +34,7 @@ impl StagingBuffer {
             .sharing_mode(vk::SharingMode::EXCLUSIVE);
         self.upload_buffer_bytes(command_buffer, ci, bytemuck::cast_slice(data))
     }
-    
+
     // TODO: Make a batched upload option? (So that you don't have to do a million queue idles...
     // TODO: This should also probably use a transfer queue...
     // TODO: Multi-part uploads for BIG data?

@@ -11,8 +11,13 @@ pub fn upload_mesh(
 ) -> Result<ManagedMesh> {
     let n_indices = indices.len() as u32;
 
-    let vertices = staging.upload_buffer_pod(command_buffer, vk::BufferUsageFlags::VERTEX_BUFFER, &vertices)?;
-    let indices = staging.upload_buffer_pod(command_buffer, vk::BufferUsageFlags::INDEX_BUFFER, &indices)?;
+    let vertices = staging.upload_buffer_pod(
+        command_buffer,
+        vk::BufferUsageFlags::VERTEX_BUFFER,
+        &vertices,
+    )?;
+    let indices =
+        staging.upload_buffer_pod(command_buffer, vk::BufferUsageFlags::INDEX_BUFFER, &indices)?;
     Ok(ManagedMesh {
         vertices,
         indices,
