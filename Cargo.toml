@@ -12,13 +12,11 @@ anyhow = "1"
 erupt = "0.18"
 winit = { version = "0.24", optional = true }
 openxr = { version = "0.14", optional = true }
-gpu-alloc-erupt = { git = "https://github.com/zakarumych/gpu-alloc.git" }
-gpu-alloc = { git = "https://github.com/zakarumych/gpu-alloc.git" }
 bytemuck = "1.5"
 ctrlc = "3.1"
 nalgebra = { version = "0.26", optional = true }
-#gpu-alloc-erupt = "0.3"
-#gpu-alloc = "0.3"
+gpu-alloc-erupt = "0.4"
+gpu-alloc = "0.4"
 
 [dev-dependencies]
 png = "0.16.8"
