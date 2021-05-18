@@ -34,7 +34,7 @@ const TEXTURE_FORMAT: vk::Format = vk::Format::R8G8B8A8_SRGB;
 
 impl MainLoop for App {
     fn new(core: &SharedCore, mut platform: Platform<'_>) -> Result<Self> {
-        let mut starter_kit = StarterKit::new(core.clone(), &mut platform)?;
+        let mut starter_kit = StarterKit::new(core.clone(), &mut platform, Default::default())?;
 
         // Camera
         let camera = MultiPlatformCamera::new(&mut platform);
@@ -101,6 +101,7 @@ impl MainLoop for App {
             vk::PrimitiveTopology::TRIANGLE_LIST,
             starter_kit.render_pass,
             pipeline_layout,
+            starter_kit.msaa_samples,
         )?;
 
         // Mesh uploads
