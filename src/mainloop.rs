@@ -10,9 +10,12 @@ pub struct Frame {
 
 /// All mainloops run on executors must implement this trait
 pub trait MainLoop: Sized {
+    /// Args passed to the mainloop on initialization
+    type Args;
+
     /// Creates a new instance of your app. Mainly useful for setting up data structures and
     /// allocating memory.
-    fn new(core: &SharedCore, platform: Platform<'_>) -> Result<Self>;
+    fn new(core: &SharedCore, platform: Platform<'_>, args: Self::Args) -> Result<Self>;
 
     /// A frame handled by your app.
     fn frame(

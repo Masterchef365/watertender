@@ -19,20 +19,20 @@ pub struct StarterKit {
 
 /// Launch a mainloop, and change platform depending on a boolean
 #[cfg(all(feature = "winit", feature = "openxr"))]
-pub fn launch<M: SyncMainLoop + 'static>(info: AppInfo, vr: bool) -> anyhow::Result<()> {
+pub fn launch<T, M: SyncMainLoop<Args=T> + 'static>(info: AppInfo, vr: bool, user: T) -> anyhow::Result<()> {
     if vr {
-        crate::openxr_backend::launch::<M>(info)
+        crate::openxr_backend::launch::<T, M>(info, user)
     } else {
-        crate::winit_backend::launch::<M>(info)
+        crate::winit_backend::launch::<T, M>(info, user)
     }
 }
 
 /// Run the main loop with validation, and if any command
 /// line args are specified, then run in VR mode
-pub fn debug<App: SyncMainLoop + 'static>() -> Result<()> {
+pub fn debug<T, App: SyncMainLoop<Args=T> + 'static>(user: T) -> Result<()> {
     let info = AppInfo::default().validation(true);
     let vr = std::env::args().count() > 1;
-    launch::<App>(info, vr)
+    launch::<T, App>(info, vr, user)
 }
 
 /// Constructed by the starter kit; typically just used for it's command buffer and to pass to the
