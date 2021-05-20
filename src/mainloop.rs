@@ -56,6 +56,21 @@ pub enum Platform<'a> {
     },
 }
 
+impl Platform<'_> {
+    pub fn request_exit(&mut self) {
+        match self {
+            #[cfg(feature = "winit")]
+            Platform::Winit { control_flow, .. } => {
+                **control_flow = winit::event_loop::ControlFlow::Exit;
+            },
+            #[cfg(feature = "openxr")]
+            Platform::OpenXr { xr_core, .. } => {
+                xr_core.session.request_exit().expect("Failed to request OpenXr exit");
+            },
+        }
+    }
+}
+
 /// Multi-platform event
 pub enum PlatformEvent<'a, 'b> {
     #[cfg(feature = "winit")]
