@@ -2,7 +2,7 @@ use crate::arcball::ArcBall;
 use winit::dpi::PhysicalPosition;
 use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
 
-pub struct WinitArcBall {
+pub struct ArcballController {
     inner: ArcBall,
     pan_sensitivity: f32,
     swivel_sensitivity: f32,
@@ -13,7 +13,7 @@ pub struct WinitArcBall {
     right_is_clicked: bool,
 }
 
-impl WinitArcBall {
+impl ArcballController {
     pub fn new(inner: ArcBall, pan_sensitivity: f32, swivel_sensitivity: f32) -> Self {
         Self {
             inner,
@@ -65,8 +65,8 @@ impl WinitArcBall {
 
     fn mouse_pivot(&mut self, delta_x: f32, delta_y: f32) {
         use std::f32::consts::FRAC_PI_2;
-        self.inner.yaw -= delta_x * self.swivel_sensitivity;
-        self.inner.pitch -= delta_y * self.swivel_sensitivity.max(-FRAC_PI_2).min(FRAC_PI_2);
+        self.inner.yaw += delta_x * self.swivel_sensitivity;
+        self.inner.pitch = (self.inner.pitch - delta_y * self.swivel_sensitivity).max(-FRAC_PI_2).min(FRAC_PI_2);
     }
 
     fn mouse_pan(&mut self, delta_x: f32, delta_y: f32) {
@@ -74,17 +74,24 @@ impl WinitArcBall {
         let x_pan = ArcBall::up().cross(&eye).normalize();
         let y_pan = x_pan.cross(&eye).normalize();
         let rate = self.inner.distance * self.pan_sensitivity;
-        self.inner.pivot += x_pan * (delta_x as f32) * rate;
+        self.inner.pivot -= x_pan * (delta_x as f32) * rate;
         self.inner.pivot += y_pan * (delta_y as f32) * rate;
     }
 
-    // TODO: Perspective and view matrices?
+    pub fn aspect(&self) -> f32 {
+        self.width as f32 / self.height as f32
+    }
+
+    pub fn inner(&self) -> &ArcBall {
+        &self.inner
+    }
+
     pub fn matrix(&self) -> nalgebra::Matrix4<f32> {
         self.inner.matrix(self.width, self.height)
     }
 }
 
-impl Default for WinitArcBall {
+impl Default for ArcballController {
     fn default() -> Self {
         Self::new(ArcBall::default(), 0.001, 0.004)
     }

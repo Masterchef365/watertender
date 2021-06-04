@@ -1,10 +1,10 @@
 use crate::mainloop::{Platform, PlatformEvent, PlatformReturn};
-use crate::winit_arcball::WinitArcBall;
+use crate::winit_arcball::ArcballController;
 use crate::xr_camera;
 use anyhow::Result;
 
 pub enum MultiPlatformCamera {
-    Winit(WinitArcBall),
+    Winit(ArcballController),
     OpenXr,
 }
 
@@ -15,7 +15,7 @@ impl MultiPlatformCamera {
     pub fn new(platform: &mut Platform<'_>) -> Self {
         match platform {
             Platform::OpenXr { .. } => Self::OpenXr,
-            Platform::Winit { .. } => Self::Winit(WinitArcBall::default()),
+            Platform::Winit { .. } => Self::Winit(ArcballController::default()),
         }
     }
 
