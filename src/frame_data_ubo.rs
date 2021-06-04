@@ -7,11 +7,8 @@ use std::marker::PhantomData;
 
 pub struct FrameDataUbo<T> {
     buffer: ManagedBuffer,
-    core: SharedCore,
     padded_size: u64,
-    descriptor_sets: Vec<vk::DescriptorSet>,
-    descriptor_pool: vk::DescriptorPool,
-    descriptor_set_layout: vk::DescriptorSetLayout,
+    frames: usize,
     _phantom: PhantomData<T>,
 }
 
@@ -28,109 +25,32 @@ impl<T: Pod> FrameDataUbo<T> {
             .size(total_size)
             .sharing_mode(vk::SharingMode::EXCLUSIVE)
             .usage(vk::BufferUsageFlags::UNIFORM_BUFFER);
-        let buffer = ManagedBuffer::new(core.clone(), ci, memory::UsageFlags::UPLOAD)?;
-
-        // Create descriptor set layout
-        let binding = 0;
-        let bindings = [vk::DescriptorSetLayoutBindingBuilder::new()
-            .binding(binding)
-            .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
-            .descriptor_count(1)
-            .stage_flags(vk::ShaderStageFlags::ALL_GRAPHICS)];
-
-        let descriptor_set_layout_ci =
-            vk::DescriptorSetLayoutCreateInfoBuilder::new().bindings(&bindings);
-
-        let descriptor_set_layout = unsafe {
-            core.device
-                .create_descriptor_set_layout(&descriptor_set_layout_ci, None, None)
-        }
-        .result()?;
-
-        // Create descriptor pool
-        let pool_sizes = [vk::DescriptorPoolSizeBuilder::new()
-            ._type(vk::DescriptorType::UNIFORM_BUFFER)
-            .descriptor_count(frames as u32)];
-
-        let create_info = vk::DescriptorPoolCreateInfoBuilder::new()
-            .pool_sizes(&pool_sizes)
-            .max_sets(frames as u32);
-
-        let descriptor_pool =
-            unsafe { core.device.create_descriptor_pool(&create_info, None, None) }.result()?;
-
-        // Create descriptor sets
-        let layouts = vec![descriptor_set_layout; frames];
-        let create_info = vk::DescriptorSetAllocateInfoBuilder::new()
-            .descriptor_pool(descriptor_pool)
-            .set_layouts(&layouts);
-
-        let descriptor_sets =
-            unsafe { core.device.allocate_descriptor_sets(&create_info) }.result()?;
-
-        // Write descriptor sets
-        let buffer_infos: Vec<_> = (0..frames)
-            .map(|frame| {
-                [vk::DescriptorBufferInfoBuilder::new()
-                    .buffer(buffer.instance())
-                    .offset(padded_size * frame as u64)
-                    .range(padded_size)]
-            })
-            .collect();
-
-        let writes: Vec<_> = buffer_infos
-            .iter()
-            .zip(descriptor_sets.iter())
-            .map(|(info, &descriptor_set)| {
-                vk::WriteDescriptorSetBuilder::new()
-                    .buffer_info(info)
-                    .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
-                    .dst_set(descriptor_set)
-                    .dst_binding(binding)
-                    .dst_array_element(0)
-            })
-            .collect();
-
-        unsafe {
-            core.device.update_descriptor_sets(&writes, &[]);
-        }
+        let buffer = ManagedBuffer::new(core, ci, memory::UsageFlags::UPLOAD)?;
 
         Ok(Self {
-            descriptor_set_layout,
-            core,
+            frames,
             buffer,
             padded_size,
-            descriptor_pool,
-            descriptor_sets,
             _phantom: PhantomData,
         })
     }
 
-    pub fn descriptor_set_layout(&self) -> vk::DescriptorSetLayout {
-        self.descriptor_set_layout
+    pub fn descriptor_buffer_info(&self, frame: usize) -> vk::DescriptorBufferInfoBuilder<'static> {
+        vk::DescriptorBufferInfoBuilder::new()
+            .buffer(self.buffer.instance())
+            .offset(self.offset(frame))
+            .range(self.padded_size)
     }
 
-    pub fn descriptor_set(&self, frame: usize) -> vk::DescriptorSet {
-        self.descriptor_sets[frame]
+    fn offset(&self, frame: usize) -> u64 {
+        debug_assert!(frame < self.frames, "Invalid frame {}", frame);
+        self.padded_size * frame as u64
     }
 
     pub fn upload(&mut self, frame: usize, data: &T) -> Result<()> {
         self.buffer.write_bytes(
-            frame as u64 * self.padded_size,
+            self.offset(frame),
             bytemuck::cast_slice(std::slice::from_ref(data)),
         )
-    }
-}
-
-impl<T> Drop for FrameDataUbo<T> {
-    fn drop(&mut self) {
-        unsafe {
-            self.core
-                .device
-                .destroy_descriptor_pool(Some(self.descriptor_pool), None);
-            self.core
-                .device
-                .destroy_descriptor_set_layout(Some(self.descriptor_set_layout), None);
-        }
     }
 }
