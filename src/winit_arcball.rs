@@ -65,7 +65,7 @@ impl ArcballController {
 
     fn mouse_pivot(&mut self, delta_x: f32, delta_y: f32) {
         use std::f32::consts::FRAC_PI_2;
-        self.inner.yaw += delta_x * self.swivel_sensitivity;
+        self.inner.yaw -= delta_x * self.swivel_sensitivity;
         self.inner.pitch = (self.inner.pitch - delta_y * self.swivel_sensitivity).max(-FRAC_PI_2).min(FRAC_PI_2);
     }
 
@@ -74,7 +74,7 @@ impl ArcballController {
         let x_pan = ArcBall::up().cross(&eye).normalize();
         let y_pan = x_pan.cross(&eye).normalize();
         let rate = self.inner.distance * self.pan_sensitivity;
-        self.inner.pivot -= x_pan * (delta_x as f32) * rate;
+        self.inner.pivot += x_pan * (delta_x as f32) * rate;
         self.inner.pivot += y_pan * (delta_y as f32) * rate;
     }
 

@@ -36,15 +36,15 @@ impl ArcBall {
     /// Eye position
     pub fn eye(&self) -> Vector3<f32> {
         Vector3::new(
-            self.yaw.cos() * self.pitch.cos().abs(),
+            self.yaw.cos() * self.pitch.cos(),
             self.pitch.sin(),
-            self.yaw.sin() * self.pitch.cos().abs(),
+            self.yaw.sin() * self.pitch.cos(),
         ) * self.distance
     }
 
     /// Up direction for the camera
     pub fn up() -> Vector3<f32> {
-        Vector3::new(0.0, 1.0, 0.0)
+        Vector3::new(0.0, 1., 0.0)
     }
 }
 
