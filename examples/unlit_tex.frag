@@ -10,7 +10,7 @@ layout(binding = 1) uniform Animation {
 */
 
 layout(location = 0) out vec4 outColor;
-layout(set = 1, binding = 0) uniform sampler2D tex;
+layout(binding = 1) uniform sampler2D tex;
 
 void main() {
     outColor = vec4(texture(tex, fragColor.xy).rgb, 1.0);
