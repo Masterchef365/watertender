@@ -3,6 +3,7 @@ use anyhow::Result;
 use erupt::vk;
 
 /// Interface to the gpu's commands
+#[derive(Copy, Clone)]
 pub struct Frame {
     /// Swapchain image selection
     pub swapchain_index: u32,

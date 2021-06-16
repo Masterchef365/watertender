@@ -90,7 +90,6 @@ impl StarterKit {
         let fence = self.sync.sync(frame.swapchain_index, self.frame)?;
 
         let command_buffer = self.command_buffers[self.frame];
-        let framebuffer = self.framebuffer.frame(frame.swapchain_index);
 
         unsafe {
             self.core
@@ -103,36 +102,6 @@ impl StarterKit {
                 .device
                 .begin_command_buffer(command_buffer, &begin_info)
                 .result()?;
-
-            // Set render pass
-            let clear_values = [
-                vk::ClearValue {
-                    color: vk::ClearColorValue {
-                        float32: [0.0, 0.0, 0.0, 1.0],
-                    },
-                },
-                vk::ClearValue {
-                    depth_stencil: vk::ClearDepthStencilValue {
-                        depth: 1.0,
-                        stencil: 0,
-                    },
-                },
-            ];
-
-            let begin_info = vk::RenderPassBeginInfoBuilder::new()
-                .framebuffer(framebuffer)
-                .render_pass(self.render_pass)
-                .render_area(vk::Rect2D {
-                    offset: vk::Offset2D { x: 0, y: 0 },
-                    extent: self.framebuffer.extent(),
-                })
-                .clear_values(&clear_values);
-
-            self.core.device.cmd_begin_render_pass(
-                command_buffer,
-                &begin_info,
-                vk::SubpassContents::INLINE,
-            );
 
             let viewports = [vk::ViewportBuilder::new()
                 .x(0.0)
@@ -160,6 +129,44 @@ impl StarterKit {
             fence,
         })
     }
+
+    /// Clear and begin render pass
+    pub fn begin_render_pass(&self, command_buffer: vk::CommandBuffer, frame: Frame, color: [f32; 4]) {
+        let framebuffer = self.framebuffer.frame(frame.swapchain_index);
+
+        // Set render pass
+        let clear_values = [
+            vk::ClearValue {
+                color: vk::ClearColorValue {
+                    float32: color,
+                },
+            },
+            vk::ClearValue {
+                depth_stencil: vk::ClearDepthStencilValue {
+                    depth: 1.0,
+                    stencil: 0,
+                },
+            },
+        ];
+
+        let begin_info = vk::RenderPassBeginInfoBuilder::new()
+            .framebuffer(framebuffer)
+            .render_pass(self.render_pass)
+            .render_area(vk::Rect2D {
+                offset: vk::Offset2D { x: 0, y: 0 },
+                extent: self.framebuffer.extent(),
+            })
+        .clear_values(&clear_values);
+
+        unsafe {
+            self.core.device.cmd_begin_render_pass(
+                command_buffer,
+                &begin_info,
+                vk::SubpassContents::INLINE,
+            );
+        }
+    }
+
 
     /// End and submit command buffer, and advance to the next frame.
     pub fn end_command_buffer(&mut self, cmd: CommandBufferStart) -> Result<()> {
