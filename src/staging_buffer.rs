@@ -1,6 +1,6 @@
 use crate::{memory::{UsageFlags, ManagedBuffer, ManagedImage}};
 use crate::SharedCore;
-use anyhow::Result;
+use anyhow::{Result, Context};
 use bytemuck::Pod;
 use erupt::vk;
 
@@ -48,7 +48,7 @@ impl StagingBuffer {
         // Expand our internal buffer to match the size of the data to be uploaded
         if ci.size > self.current_size {
             self.current_size = ci.size;
-            self.buffer = Self::build_staging_buffer(self.core.clone(), self.current_size)?;
+            self.buffer = Self::build_staging_buffer(self.core.clone(), self.current_size).context("Failed to alloc staging buffer")?;
         }
 
         // Write to the staging buffer
@@ -56,7 +56,7 @@ impl StagingBuffer {
 
         // Create the final buffer
         ci.usage |= vk::BufferUsageFlags::TRANSFER_DST;
-        let gpu_buffer = ManagedBuffer::new(self.core.clone(), ci, UsageFlags::FAST_DEVICE_ACCESS)?;
+        let gpu_buffer = ManagedBuffer::new(self.core.clone(), ci, UsageFlags::FAST_DEVICE_ACCESS).context("Failed to allocate device buffer")?;
 
         // Upload to this new buffer
         unsafe {
@@ -155,14 +155,14 @@ impl StagingBuffer {
         // Expand our internal buffer to match the size of the data to be uploaded
         if data.len() as u64 > self.current_size {
             self.current_size = data.len() as u64;
-            self.buffer = Self::build_staging_buffer(self.core.clone(), self.current_size)?;
+            self.buffer = Self::build_staging_buffer(self.core.clone(), self.current_size).context("Failed to build staging buffer")?;
         }
 
         // Write to the staging buffer
         self.buffer.write_bytes(0, data)?;
 
         // Create the final buffer
-        let gpu_image = ManagedImage::new(self.core.clone(), ci, UsageFlags::FAST_DEVICE_ACCESS)?;
+        let gpu_image = ManagedImage::new(self.core.clone(), ci, UsageFlags::FAST_DEVICE_ACCESS).context("Failed to allocate GPU image")?;
 
         // NOTE: image_layout must be one of VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL, or VK_IMAGE_LAYOUT_SHARED_PRESENT_KHR
         // Refer to: https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/vkCmdCopyBufferToImage.html
