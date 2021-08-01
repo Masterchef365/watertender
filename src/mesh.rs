@@ -31,23 +31,20 @@ pub struct ManagedMesh {
     pub n_indices: u32,
 }
 
-pub fn draw_meshes(core: &Core, command_buffer: vk::CommandBuffer, meshes: &[&ManagedMesh]) {
-    for mesh in meshes {
-        unsafe {
-            core.device.cmd_bind_vertex_buffers(
-                command_buffer,
-                0,
-                &[mesh.vertices.instance()],
-                &[0],
-            );
-            core.device.cmd_bind_index_buffer(
-                command_buffer,
-                mesh.indices.instance(),
-                0,
-                vk::IndexType::UINT32,
-            );
-            core.device
-                .cmd_draw_indexed(command_buffer, mesh.n_indices, 1, 0, 0, 0);
-        }
+pub fn draw_mesh(core: &Core, command_buffer: vk::CommandBuffer, mesh: &ManagedMesh) {
+    unsafe {
+        core.device.cmd_bind_vertex_buffers(
+            command_buffer,
+            0,
+            &[mesh.vertices.instance()],
+            &[0],
+        );
+        core.device.cmd_bind_index_buffer(
+            command_buffer,
+            mesh.indices.instance(),
+            0,
+            vk::IndexType::UINT32,
+        );
+        core.device.cmd_draw_indexed(command_buffer, mesh.n_indices, 1, 0, 0, 0);
     }
 }
