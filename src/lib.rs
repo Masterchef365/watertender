@@ -11,6 +11,7 @@ pub mod defaults;
 pub mod hardware_query;
 pub mod memory;
 pub mod mesh;
+pub mod headless_backend;
 
 #[cfg(feature = "nalgebra")]
 pub mod arcball;
