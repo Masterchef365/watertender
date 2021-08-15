@@ -11,6 +11,7 @@ pub fn draw(draw: DrawList, vr: bool) -> Result<()> {
 pub type DrawList = Vec<DrawData>;
 
 /// A mesh and the primitive it is constructed of
+#[derive(Clone)]
 pub struct DrawData {
     pub indices: Vec<u32>,
     pub vertices: Vec<Vertex>,
