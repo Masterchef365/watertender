@@ -256,6 +256,8 @@ impl MainLoop<DrawList> for App {
             },
         )?;
 
+        self.anim += 1.0;
+
         // End draw cmds
         self.starter_kit.end_command_buffer(cmd)?;
 
