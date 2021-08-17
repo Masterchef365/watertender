@@ -31,7 +31,7 @@ void main() {
     //vec3 color = vec3(mix(vec3(0.08,0.07,0.010), vec3(0.016,0.543,1.000), q + 0.1));
     //vec3 color = vec3(mix(vec3(0.011,0.067,0.080), vec3(0.016,0.543,1.000), q + 0.184));
     vec3 color = vec3(mix(vec3(0.), vec3(0.016,0.543,1.000), pow(q, 3.)));
-    color *= (cos(vertidx / 12.234234) + 1.0 + 0.03) * 0.8;
+    color *= (cos(vertidx / 12.234234) + 1.0 + 0.03) * 0.08;
 
     outColor = vec4(
         color,
