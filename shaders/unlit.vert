@@ -25,7 +25,9 @@ layout(location = 1) out float vertidx;
 
 void main() {
     //gl_Position = camera[gl_ViewIndex] * model * vec4(inPosition, 1.0);
-    gl_Position = camera[gl_ViewIndex] * vec4(inPosition, 1.0);
+    vec4 glpos = camera[gl_ViewIndex] * vec4(inPosition, 1.0);
+    gl_Position = glpos;
+    gl_PointSize = clamp((1. - glpos.z) * 5., 1., 10.);
     fragColor = inColor;
     vertidx = float(gl_VertexIndex);
 }
