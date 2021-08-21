@@ -13,7 +13,7 @@ pub struct ArcBall {
 impl ArcBall {
     /// Extract the camera matrix given screen dimensions
     pub fn matrix(&self, width: u32, height: u32) -> Matrix4<f32> {
-        self.perspective(width, height) * self.view()
+        /*self.perspective(width, height) * */ self.view().try_inverse().unwrap()
     }
 
     /// Perspective matrix
