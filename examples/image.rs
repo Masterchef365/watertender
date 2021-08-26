@@ -1,13 +1,17 @@
-use anyhow::{Context, Result};
-use std::path::Path;
 use watertender::prelude::*;
+use defaults::FRAMES_IN_FLIGHT;
+use anyhow::{Result, Context};
+use std::path::Path;
 
 struct App {
-    descriptor_set: vk::DescriptorSet,
-    _cube_tex: ManagedImage,
     rainbow_cube: ManagedMesh,
     pipeline: vk::Pipeline,
     pipeline_layout: vk::PipelineLayout,
+
+    descriptor_sets: Vec<vk::DescriptorSet>,
+    descriptor_pool: vk::DescriptorPool,
+    descriptor_set_layout: vk::DescriptorSetLayout,
+
     scene_ubo: FrameDataUbo<SceneData>,
     camera: MultiPlatformCamera,
     anim: f32,
@@ -20,6 +24,8 @@ fn main() -> Result<()> {
     launch::<App>(info, vr)
 }
 
+const TEXTURE_FORMAT: vk::Format = vk::Format::R8G8B8A8_SRGB;
+
 #[repr(C)]
 #[derive(Copy, Clone, Debug)]
 struct SceneData {
@@ -30,87 +36,12 @@ struct SceneData {
 unsafe impl bytemuck::Zeroable for SceneData {}
 unsafe impl bytemuck::Pod for SceneData {}
 
-const TEXTURE_FORMAT: vk::Format = vk::Format::R8G8B8A8_SRGB;
-
 impl MainLoop for App {
     fn new(core: &SharedCore, mut platform: Platform<'_>) -> Result<Self> {
         let mut starter_kit = StarterKit::new(core.clone(), &mut platform)?;
 
         // Camera
         let camera = MultiPlatformCamera::new(&mut platform);
-
-        // Descriptor set
-        let bindings = [vk::DescriptorSetLayoutBindingBuilder::new()
-            .binding(0)
-            .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
-            .descriptor_count(1)
-            .stage_flags(vk::ShaderStageFlags::FRAGMENT)];
-        let descriptor_set_layout_ci =
-            vk::DescriptorSetLayoutCreateInfoBuilder::new().bindings(&bindings);
-
-        let descriptor_set_layout = unsafe {
-            core.device
-                .create_descriptor_set_layout(&descriptor_set_layout_ci, None, None)
-        }
-        .result()?;
-
-        // Create descriptor pool
-        let pool_sizes = [vk::DescriptorPoolSizeBuilder::new()
-            ._type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
-            .descriptor_count(1)];
-
-        let create_info = vk::DescriptorPoolCreateInfoBuilder::new()
-            .pool_sizes(&pool_sizes)
-            .max_sets(1);
-
-        let descriptor_pool =
-            unsafe { core.device.create_descriptor_pool(&create_info, None, None) }.result()?;
-
-        // Create descriptor sets
-        let layouts = vec![descriptor_set_layout];
-        let create_info = vk::DescriptorSetAllocateInfoBuilder::new()
-            .descriptor_pool(descriptor_pool)
-            .set_layouts(&layouts);
-
-        let descriptor_set =
-            unsafe { core.device.allocate_descriptor_sets(&create_info) }.result()?[0];
-
-        // Scene data
-        let scene_ubo = FrameDataUbo::new(core.clone(), defaults::FRAMES_IN_FLIGHT)?;
-
-        let descriptor_set_layouts = [scene_ubo.descriptor_set_layout(), descriptor_set_layout];
-
-        // Pipeline layout
-        let push_constant_ranges = [vk::PushConstantRangeBuilder::new()
-            .stage_flags(vk::ShaderStageFlags::VERTEX)
-            .offset(0)
-            .size(std::mem::size_of::<[f32; 4 * 4]>() as u32)];
-
-        let create_info = vk::PipelineLayoutCreateInfoBuilder::new()
-            .push_constant_ranges(&push_constant_ranges)
-            .set_layouts(&descriptor_set_layouts);
-
-        let pipeline_layout =
-            unsafe { core.device.create_pipeline_layout(&create_info, None, None) }.result()?;
-
-        // Pipeline
-        let pipeline = shader(
-            core,
-            include_bytes!("unlit.vert.spv"),
-            include_bytes!("unlit_tex.frag.spv"),
-            vk::PrimitiveTopology::TRIANGLE_LIST,
-            starter_kit.render_pass,
-            pipeline_layout,
-        )?;
-
-        // Mesh uploads
-        let (vertices, indices) = rainbow_cube();
-        let rainbow_cube = upload_mesh(
-            &mut starter_kit.staging_buffer,
-            starter_kit.command_buffers[0],
-            &vertices,
-            &indices,
-        )?;
 
         // Image uploads
         let image_layout = vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL;
@@ -159,27 +90,129 @@ impl MainLoop for App {
 
         let sampler = unsafe { core.device.create_sampler(&create_info, None, None) }.result()?;
 
-        // Descriptor write
+        // Scene data
+        let scene_ubo = FrameDataUbo::new(core.clone(), FRAMES_IN_FLIGHT)?;
+
+        // Create descriptor set layout
+        const FRAME_DATA_BINDING: u32 = 0;
+        const IMAGE_BINDING: u32 = 1;
+        let bindings = [
+            vk::DescriptorSetLayoutBindingBuilder::new()
+                .binding(FRAME_DATA_BINDING)
+                .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
+                .descriptor_count(1)
+                .stage_flags(vk::ShaderStageFlags::ALL_GRAPHICS),
+            vk::DescriptorSetLayoutBindingBuilder::new()
+                .binding(IMAGE_BINDING)
+                .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
+                .descriptor_count(1)
+                .stage_flags(vk::ShaderStageFlags::FRAGMENT)
+        ];
+
+        let descriptor_set_layout_ci =
+            vk::DescriptorSetLayoutCreateInfoBuilder::new().bindings(&bindings);
+
+        let descriptor_set_layout = unsafe {
+            core.device
+                .create_descriptor_set_layout(&descriptor_set_layout_ci, None, None)
+        }
+        .result()?;
+
+        // Create descriptor pool
+        let pool_sizes = [
+            vk::DescriptorPoolSizeBuilder::new()
+                ._type(vk::DescriptorType::UNIFORM_BUFFER)
+                .descriptor_count(FRAMES_IN_FLIGHT as _),
+            vk::DescriptorPoolSizeBuilder::new()
+                ._type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
+                .descriptor_count(FRAMES_IN_FLIGHT as _),
+        ];
+
+        let create_info = vk::DescriptorPoolCreateInfoBuilder::new()
+            .pool_sizes(&pool_sizes)
+            .max_sets((FRAMES_IN_FLIGHT * 2) as _);
+
+        let descriptor_pool =
+            unsafe { core.device.create_descriptor_pool(&create_info, None, None) }.result()?;
+
+        // Create descriptor sets
+        let layouts = vec![descriptor_set_layout; FRAMES_IN_FLIGHT];
+        let create_info = vk::DescriptorSetAllocateInfoBuilder::new()
+            .descriptor_pool(descriptor_pool)
+            .set_layouts(&layouts);
+
+        let descriptor_sets =
+            unsafe { core.device.allocate_descriptor_sets(&create_info) }.result()?;
+
+        // Image info
         let image_infos = [vk::DescriptorImageInfoBuilder::new()
             .image_layout(image_layout)
             .image_view(image_view)
             .sampler(sampler)];
 
-        let writes = [vk::WriteDescriptorSetBuilder::new()
-            .image_info(&image_infos)
-            .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
-            .dst_set(descriptor_set)
-            .dst_binding(0)
-            .dst_array_element(0)];
+        // Write descriptor sets
+        for (frame, &descriptor_set) in descriptor_sets.iter().enumerate() {
+            let frame_data_bi = [scene_ubo.descriptor_buffer_info(frame)];
+            let writes = [
+                vk::WriteDescriptorSetBuilder::new()
+                    .buffer_info(&frame_data_bi)
+                    .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
+                    .dst_set(descriptor_set)
+                    .dst_binding(FRAME_DATA_BINDING)
+                    .dst_array_element(0),
+                vk::WriteDescriptorSetBuilder::new()
+                    .image_info(&image_infos)
+                    .descriptor_type(vk::DescriptorType::COMBINED_IMAGE_SAMPLER)
+                    .dst_set(descriptor_set)
+                    .dst_binding(IMAGE_BINDING)
+                    .dst_array_element(0)
+            ];
 
-        unsafe {
-            core.device.update_descriptor_sets(&writes, &[]);
+            unsafe {
+                core.device.update_descriptor_sets(&writes, &[]);
+            }
         }
 
+
+        let descriptor_set_layouts = [descriptor_set_layout];
+
+        // Pipeline layout
+        let push_constant_ranges = [vk::PushConstantRangeBuilder::new()
+            .stage_flags(vk::ShaderStageFlags::VERTEX)
+            .offset(0)
+            .size(std::mem::size_of::<[f32; 4 * 4]>() as u32)];
+
+        let create_info = vk::PipelineLayoutCreateInfoBuilder::new()
+            .push_constant_ranges(&push_constant_ranges)
+            .set_layouts(&descriptor_set_layouts);
+
+        let pipeline_layout =
+            unsafe { core.device.create_pipeline_layout(&create_info, None, None) }.result()?;
+
+        // Pipeline
+        let pipeline = shader(
+            core,
+            include_bytes!("unlit.vert.spv"),
+            include_bytes!("unlit_tex.frag.spv"),
+            vk::PrimitiveTopology::TRIANGLE_LIST,
+            starter_kit.render_pass,
+            pipeline_layout,
+        )?;
+
+        // Mesh uploads
+        let (vertices, indices) = rainbow_cube();
+        let rainbow_cube = upload_mesh(
+            &mut starter_kit.staging_buffer,
+            starter_kit.command_buffers[0],
+            &vertices,
+            &indices,
+        )?;
+
         Ok(Self {
-            descriptor_set,
-            _cube_tex: cube_tex,
             camera,
+            descriptor_set_layout,
+            descriptor_sets,
+            descriptor_pool,
             anim: 0.0,
             pipeline_layout,
             scene_ubo,
@@ -204,10 +237,7 @@ impl MainLoop for App {
                 vk::PipelineBindPoint::GRAPHICS,
                 self.pipeline_layout,
                 0,
-                &[
-                    self.scene_ubo.descriptor_set(self.starter_kit.frame),
-                    self.descriptor_set,
-                ],
+                &[self.descriptor_sets[self.starter_kit.frame]],
                 &[],
             );
 

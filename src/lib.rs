@@ -11,6 +11,7 @@ pub mod defaults;
 pub mod hardware_query;
 pub mod memory;
 pub mod mesh;
+pub mod headless_backend;
 
 #[cfg(feature = "nalgebra")]
 pub mod arcball;
@@ -49,6 +50,9 @@ pub mod mainloop;
 #[cfg(feature = "nalgebra")]
 pub use nalgebra;
 
+#[cfg(all(feature = "nalgebra", feature = "openxr", feature = "winit"))]
+pub mod trivial;
+
 /// Go figure
 pub const ENGINE_NAME: &str = "WaterTender";
 
@@ -60,7 +64,7 @@ pub mod prelude {
         framebuffer_mgr::FramebufferManager, 
         staging_buffer::StagingBuffer, 
         synchronization::Synchronization,
-        mesh::{ManagedMesh, upload_mesh, draw_meshes},
+        mesh::{ManagedMesh, upload_mesh, draw_mesh},
         memory::{ManagedImage, ManagedBuffer},
         starter_kit::{self, launch, StarterKit},
         frame_data_ubo::FrameDataUbo,

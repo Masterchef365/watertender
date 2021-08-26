@@ -24,7 +24,7 @@ use winit::{
     window::{Window, WindowBuilder},
 };
 
-pub fn launch<M: SyncMainLoop + 'static>(info: AppInfo) -> Result<()> {
+pub fn launch<M: SyncMainLoop<T> + 'static, T>(info: AppInfo, userdata: T) -> Result<()> {
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
         .with_title(&info.name)
@@ -32,7 +32,7 @@ pub fn launch<M: SyncMainLoop + 'static>(info: AppInfo) -> Result<()> {
         .context("Failed to create window")?;
 
     let (core, surface, present_mode) = build_core(info, &window)?;
-    begin_loop::<M>(core, event_loop, window, surface, present_mode)
+    begin_loop::<M, T>(core, event_loop, window, surface, present_mode, userdata)
 }
 
 // TODO: Swap this out for better behaviour! (At least sorta exit gracefully...)
@@ -47,12 +47,13 @@ fn res<T>(r: Result<T>) -> T {
     }
 }
 
-fn begin_loop<M: SyncMainLoop + 'static>(
+fn begin_loop<M: SyncMainLoop<T> + 'static, T>(
     core: Core,
     event_loop: EventLoop<()>,
     window: Window,
     surface: SurfaceKHR,
     present_mode: PresentModeKHR,
+    userdata: T,
 ) -> Result<()> {
     let core = SharedCore::new(core);
 
@@ -62,6 +63,7 @@ fn begin_loop<M: SyncMainLoop + 'static>(
             window: &window,
             control_flow: &mut Default::default(),
         },
+        userdata,
     )?;
 
     let (mut swapchain, (images, extent)) =

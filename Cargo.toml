@@ -10,7 +10,7 @@ default = ["winit", "openxr", "nalgebra"]
 [dependencies]
 anyhow = "1"
 erupt = "0.18"
-winit = { version = "0.24", optional = true }
+winit = { version = "0.25", optional = true }
 openxr = { version = "0.14", optional = true }
 bytemuck = "1.5"
 ctrlc = "3.1"

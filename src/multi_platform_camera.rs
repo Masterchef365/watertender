@@ -19,7 +19,7 @@ impl MultiPlatformCamera {
         }
     }
 
-    pub fn get_matrices(&self, platform: Platform) -> Result<(PlatformReturn, [f32; 4 * 4 * 2])> {
+    pub fn get_matrices(&self, platform: &Platform) -> Result<(PlatformReturn, [f32; 4 * 4 * 2])> {
         match (self, platform) {
             // Winit mode
             #[cfg(feature = "winit")]
