@@ -21,7 +21,7 @@ struct App {
 fn main() -> Result<()> {
     let info = AppInfo::default().validation(true);
     let vr = std::env::args().count() > 1;
-    launch::<App>(info, vr)
+    launch::<App, _>(info, vr, ())
 }
 
 const TEXTURE_FORMAT: vk::Format = vk::Format::R8G8B8A8_SRGB;
@@ -37,7 +37,7 @@ unsafe impl bytemuck::Zeroable for SceneData {}
 unsafe impl bytemuck::Pod for SceneData {}
 
 impl MainLoop for App {
-    fn new(core: &SharedCore, mut platform: Platform<'_>) -> Result<Self> {
+    fn new(core: &SharedCore, mut platform: Platform<'_>, _: ()) -> Result<Self> {
         let mut starter_kit = StarterKit::new(core.clone(), &mut platform)?;
 
         // Camera
@@ -192,8 +192,8 @@ impl MainLoop for App {
         // Pipeline
         let pipeline = shader(
             core,
-            include_bytes!("unlit.vert.spv"),
-            include_bytes!("unlit_tex.frag.spv"),
+            &std::fs::read("shaders/unlit.vert.spv")?,
+            &std::fs::read("shaders/unlit_tex.frag.spv")?,
             vk::PrimitiveTopology::TRIANGLE_LIST,
             starter_kit.render_pass,
             pipeline_layout,
@@ -248,14 +248,14 @@ impl MainLoop for App {
                 self.pipeline,
             );
 
-            draw_meshes(
+            draw_mesh(
                 core,
                 command_buffer,
-                std::slice::from_ref(&&self.rainbow_cube),
+                &self.rainbow_cube,
             );
         }
 
-        let (ret, cameras) = self.camera.get_matrices(platform)?;
+        let (ret, cameras) = self.camera.get_matrices(&platform)?;
 
         self.scene_ubo.upload(
             self.starter_kit.frame,
