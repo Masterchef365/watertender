@@ -67,7 +67,7 @@ unsafe impl bytemuck::Pod for SceneData {}
 impl MainLoop<DrawList> for App {
     fn new(core: &SharedCore, mut platform: Platform<'_>, draw_data: DrawList) -> Result<Self> {
         let settings = Settings {
-            msaa_samples: 1
+            msaa_samples: 4
         };
         let mut starter_kit = StarterKit::new(core.clone(), &mut platform, settings)?;
 
