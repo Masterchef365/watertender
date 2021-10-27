@@ -1,11 +1,11 @@
-use crate::shortcuts::{
-    create_render_pass, launch, FramebufferManager, StagingBuffer, Synchronization, max_samples,
-};
-use crate::{AppInfo, Frame, Platform, PlatformEvent, SharedCore, SyncMainLoop};
+use crate::app_info::AppInfo;
+use crate::mainloop::{Frame, Platform, PlatformEvent, SyncMainLoop};
+use crate::framebuffer_mgr::max_samples;
+use crate::{render_pass::create_render_pass, framebuffer_mgr::FramebufferManager, staging_buffer::StagingBuffer, synchronization::Synchronization};
+use crate::SharedCore;
 use anyhow::Result;
 use erupt::vk;
-
-pub const FRAMES_IN_FLIGHT: usize = 2;
+use crate::defaults::FRAMES_IN_FLIGHT;
 
 /// The StarterKit is a collection of commonly used utilities and code, and is made out of other shortcuts.
 pub struct StarterKit {
@@ -19,6 +19,17 @@ pub struct StarterKit {
     pub frame: usize,
 }
 
+/// Launch a mainloop, and change platform depending on a boolean
+#[cfg(all(feature = "winit", feature = "openxr"))]
+pub fn launch<M: SyncMainLoop<T> + 'static, T>(info: AppInfo, vr: bool, userdata: T) -> anyhow::Result<()> {
+    if vr {
+        crate::openxr_backend::launch::<M, T>(info, userdata)
+    } else {
+        crate::winit_backend::launch::<M, T>(info, userdata)
+    }
+}
+
+/*
 /// Run the main loop with validation, and if any command
 /// line args are specified, then run in VR mode
 pub fn debug<App: SyncMainLoop + 'static>() -> Result<()> {
@@ -26,6 +37,7 @@ pub fn debug<App: SyncMainLoop + 'static>() -> Result<()> {
     let vr = std::env::args().count() > 1;
     launch::<App>(info, vr)
 }
+*/
 
 /// Constructed by the starter kit; typically just used for it's command buffer and to pass to the
 /// `end_command_buffer()` function.

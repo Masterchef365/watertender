@@ -1,5 +1,10 @@
 use crate::hardware_query::HardwareSelection;
-use crate::{AppInfo, Core, Frame, Platform, PlatformEvent, SharedCore, SyncMainLoop};
+use crate::{
+    app_info::{engine_version, AppInfo},
+    mainloop::{Frame, Platform, PlatformEvent, SyncMainLoop},
+    defaults::{COLOR_FORMAT, COLOR_SPACE},
+    Core, SharedCore,
+};
 use anyhow::{Context, Result};
 use erupt::{
     cstr,
@@ -19,7 +24,7 @@ use winit::{
     window::{Window, WindowBuilder},
 };
 
-pub fn launch<M: SyncMainLoop + 'static>(info: AppInfo) -> Result<()> {
+pub fn launch<M: SyncMainLoop<T> + 'static, T>(info: AppInfo, userdata: T) -> Result<()> {
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
         .with_title(&info.name)
@@ -27,7 +32,7 @@ pub fn launch<M: SyncMainLoop + 'static>(info: AppInfo) -> Result<()> {
         .context("Failed to create window")?;
 
     let (core, surface, present_mode) = build_core(info, &window)?;
-    begin_loop::<M>(core, event_loop, window, surface, present_mode)
+    begin_loop::<M, T>(core, event_loop, window, surface, present_mode, userdata)
 }
 
 // TODO: Swap this out for better behaviour! (At least sorta exit gracefully...)
@@ -42,12 +47,13 @@ fn res<T>(r: Result<T>) -> T {
     }
 }
 
-fn begin_loop<M: SyncMainLoop + 'static>(
+fn begin_loop<M: SyncMainLoop<T> + 'static, T>(
     core: Core,
     event_loop: EventLoop<()>,
     window: Window,
     surface: SurfaceKHR,
     present_mode: PresentModeKHR,
+    userdata: T,
 ) -> Result<()> {
     let core = SharedCore::new(core);
 
@@ -57,6 +63,7 @@ fn begin_loop<M: SyncMainLoop + 'static>(
             window: &window,
             control_flow: &mut Default::default(),
         },
+        userdata,
     )?;
 
     let (mut swapchain, (images, extent)) =
@@ -135,7 +142,7 @@ pub fn build_core(info: AppInfo, window: &Window) -> Result<(Core, SurfaceKHR, P
         .application_name(&app_name)
         .application_version(info.version)
         .engine_name(&engine_name)
-        .engine_version(crate::engine_version())
+        .engine_version(engine_version())
         .api_version(info.api_version);
 
     // Instance and device layers and extensions
@@ -289,8 +296,8 @@ impl Swapchain {
         let create_info = khr_swapchain::SwapchainCreateInfoKHRBuilder::new()
             .surface(surface)
             .min_image_count(image_count)
-            .image_format(crate::COLOR_FORMAT)
-            .image_color_space(crate::COLOR_SPACE)
+            .image_format(COLOR_FORMAT)
+            .image_color_space(COLOR_SPACE)
             .image_extent(surface_caps.current_extent)
             .image_array_layers(1)
             .image_usage(vk::ImageUsageFlags::COLOR_ATTACHMENT)

@@ -1,4 +1,4 @@
-use crate::shortcuts::arcball::ArcBall;
+use crate::arcball::ArcBall;
 use winit::dpi::PhysicalPosition;
 use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
 

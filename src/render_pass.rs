@@ -1,3 +1,4 @@
+use crate::defaults::{COLOR_FORMAT, DEPTH_FORMAT};
 use crate::Core;
 use anyhow::Result;
 use erupt::{vk, vk1_1};
@@ -7,7 +8,7 @@ pub fn create_render_pass(core: &Core, vr: bool, msaa_samples: vk::SampleCountFl
 
     // Render pass
     let color_attachment = vk::AttachmentDescriptionBuilder::new()
-        .format(crate::COLOR_FORMAT)
+        .format(COLOR_FORMAT)
         .samples(msaa_samples)
         .load_op(vk::AttachmentLoadOp::CLEAR)
         .store_op(vk::AttachmentStoreOp::STORE)
@@ -17,8 +18,8 @@ pub fn create_render_pass(core: &Core, vr: bool, msaa_samples: vk::SampleCountFl
         .final_layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL);
 
     let depth_attachment = vk::AttachmentDescriptionBuilder::new()
-        .format(crate::DEPTH_FORMAT)
         .samples(msaa_samples)
+        .format(DEPTH_FORMAT)
         .load_op(vk::AttachmentLoadOp::CLEAR)
         .store_op(vk::AttachmentStoreOp::DONT_CARE)
         .stencil_load_op(vk::AttachmentLoadOp::DONT_CARE)
@@ -27,7 +28,7 @@ pub fn create_render_pass(core: &Core, vr: bool, msaa_samples: vk::SampleCountFl
         .final_layout(vk::ImageLayout::DEPTH_STENCIL_ATTACHMENT_OPTIMAL);
 
     let resolve_attachment = vk::AttachmentDescriptionBuilder::new()
-        .format(crate::COLOR_FORMAT)
+        .format(COLOR_FORMAT)
         .samples(vk::SampleCountFlagBits::_1)
         .load_op(vk::AttachmentLoadOp::CLEAR)
         .store_op(vk::AttachmentStoreOp::STORE)
