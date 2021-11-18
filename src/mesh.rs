@@ -36,12 +36,12 @@ pub fn draw_mesh(core: &Core, command_buffer: vk::CommandBuffer, mesh: &ManagedM
         core.device.cmd_bind_vertex_buffers(
             command_buffer,
             0,
-            &[mesh.vertices.instance()],
+            &[mesh.vertices.buffer()],
             &[0],
         );
         core.device.cmd_bind_index_buffer(
             command_buffer,
-            mesh.indices.instance(),
+            mesh.indices.buffer(),
             0,
             vk::IndexType::UINT32,
         );

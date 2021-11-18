@@ -63,8 +63,8 @@ impl StagingBuffer {
 
             self.core.device.cmd_copy_buffer(
                 command_buffer,
-                self.buffer.instance(),
-                gpu_buffer.instance(),
+                self.buffer.buffer(),
+                gpu_buffer.buffer(),
                 &[region],
             );
         }
@@ -220,7 +220,7 @@ impl StagingBuffer {
 
             self.core.device.cmd_copy_buffer_to_image(
                 command_buffer,
-                self.buffer.instance(),
+                self.buffer.buffer(),
                 gpu_image.instance(),
                 image_layout,
                 &[copy],

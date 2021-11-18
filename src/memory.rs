@@ -79,7 +79,7 @@ impl ManagedBuffer {
         })
     }
 
-    pub fn instance(&self) -> vk::Buffer {
+    pub fn buffer(&self) -> vk::Buffer {
         self.instance
     }
 }

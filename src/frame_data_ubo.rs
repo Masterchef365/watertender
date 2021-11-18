@@ -37,7 +37,7 @@ impl<T: Pod> FrameDataUbo<T> {
 
     pub fn descriptor_buffer_info(&self, frame: usize) -> vk::DescriptorBufferInfoBuilder<'static> {
         vk::DescriptorBufferInfoBuilder::new()
-            .buffer(self.buffer.instance())
+            .buffer(self.buffer.buffer())
             .offset(self.offset(frame))
             .range(self.padded_size)
     }
