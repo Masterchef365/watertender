@@ -23,7 +23,7 @@ pub mod winit_arcball;
 pub mod xr_camera;
 
 #[cfg(all(feature = "nalgebra", feature = "openxr", feature = "winit"))]
-mod multi_platform_camera;
+pub mod multi_platform_camera;
 #[cfg(all(feature = "nalgebra", feature = "openxr", feature = "winit"))]
 pub use multi_platform_camera::MultiPlatformCamera;
 
