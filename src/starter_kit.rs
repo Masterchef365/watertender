@@ -87,25 +87,9 @@ impl StarterKit {
         })
     }
 
-    /// Begins command buffer, render pass, and sets viewports
-    pub fn begin_command_buffer(&mut self, frame: Frame) -> Result<CommandBufferStart> {
-        let fence = self.sync.sync(frame.swapchain_index, self.frame)?;
-
-        let command_buffer = self.command_buffers[self.frame];
-        let framebuffer = self.framebuffer.frame(frame.swapchain_index);
-
+    pub fn begin_render_pass(&mut self, frame: &Frame) {
+        let command_buffer = self.current_command_buffer();
         unsafe {
-            self.core
-                .device
-                .reset_command_buffer(command_buffer, None)
-                .result()?;
-
-            let begin_info = vk::CommandBufferBeginInfoBuilder::new();
-            self.core
-                .device
-                .begin_command_buffer(command_buffer, &begin_info)
-                .result()?;
-
             // Set render pass
             let clear_values = [
                 vk::ClearValue {
@@ -122,7 +106,7 @@ impl StarterKit {
             ];
 
             let begin_info = vk::RenderPassBeginInfoBuilder::new()
-                .framebuffer(framebuffer)
+                .framebuffer(self.framebuffer.frame(frame.swapchain_index))
                 .render_pass(self.render_pass)
                 .render_area(vk::Rect2D {
                     offset: vk::Offset2D { x: 0, y: 0 },
@@ -135,7 +119,12 @@ impl StarterKit {
                 &begin_info,
                 vk::SubpassContents::INLINE,
             );
+        }
+    }
 
+    pub fn set_viewport(&mut self) {
+        let command_buffer = self.current_command_buffer();
+        unsafe {
             let viewports = [vk::ViewportBuilder::new()
                 .x(0.0)
                 .y(0.0)
@@ -144,17 +133,37 @@ impl StarterKit {
                 .min_depth(0.0)
                 .max_depth(1.0)];
 
+            self.core
+                .device
+                .cmd_set_viewport(command_buffer, 0, &viewports);
+
             let scissors = [vk::Rect2DBuilder::new()
                 .offset(vk::Offset2D { x: 0, y: 0 })
                 .extent(self.framebuffer.extent())];
 
             self.core
                 .device
-                .cmd_set_viewport(command_buffer, 0, &viewports);
+                .cmd_set_scissor(command_buffer, 0, &scissors);
+        }
+    }
 
+    /// Begins command buffer, render pass, and sets viewports
+    pub fn begin_command_buffer(&mut self, frame: &Frame) -> Result<CommandBufferStart> {
+        let fence = self.sync.sync(frame.swapchain_index, self.frame)?;
+
+        let command_buffer = self.current_command_buffer();
+
+        unsafe {
             self.core
                 .device
-                .cmd_set_scissor(command_buffer, 0, &scissors);
+                .reset_command_buffer(command_buffer, None)
+                .result()?;
+
+            let begin_info = vk::CommandBufferBeginInfoBuilder::new();
+            self.core
+                .device
+                .begin_command_buffer(command_buffer, &begin_info)
+                .result()?;
         }
 
         Ok(CommandBufferStart {

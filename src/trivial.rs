@@ -213,7 +213,7 @@ impl MainLoop<DrawList> for App {
         core: &SharedCore,
         platform: Platform<'_>,
     ) -> Result<PlatformReturn> {
-        let cmd = self.starter_kit.begin_command_buffer(frame)?;
+        let cmd = self.starter_kit.begin_command_buffer(&frame)?;
         let command_buffer = cmd.command_buffer;
 
         unsafe {
