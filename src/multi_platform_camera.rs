@@ -21,7 +21,7 @@ impl MultiPlatformCamera {
     }
 
     /// Get the prefix matrix of this camera
-    pub fn get_prefix(&self, platform: &Platform) -> Matrix4<f32> {
+    pub fn get_prefix(&self) -> Matrix4<f32> {
         match self {
             Self::Winit(arcball) => arcball.matrix(),
             Self::OpenXr => Matrix4::identity(),
@@ -30,7 +30,7 @@ impl MultiPlatformCamera {
 
     /// Get the prefix matrix of this camera (appended with VR matrices in VR mode)
     pub fn get_matrices_prefix(&self, platform: &Platform) -> Result<(PlatformReturn, [f32; 4 * 4 * 2])> {
-        platform_camera_prefix(platform, self.get_prefix(platform))
+        platform_camera_prefix(platform, self.get_prefix())
     }
 
     /// Handle a platform event; Returns true if the event was consumed.

@@ -272,7 +272,7 @@ impl MainLoop<DrawList> for App {
         &mut self,
         mut event: PlatformEvent<'_, '_>,
         _core: &Core,
-        mut platform: Platform<'_>,
+        platform: Platform<'_>,
     ) -> Result<()> {
         self.camera.handle_event(&mut event);
         starter_kit::close_when_asked(event, platform);
