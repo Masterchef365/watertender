@@ -246,7 +246,7 @@ impl MainLoop<DrawList> for App {
             }
         }
 
-        let (ret, cameras) = self.camera.get_matrices(&platform)?;
+        let (ret, cameras) = self.camera.get_matrices_prefix(&platform)?;
 
         self.scene_ubo.upload(
             self.starter_kit.frame,
@@ -274,7 +274,7 @@ impl MainLoop<DrawList> for App {
         _core: &Core,
         mut platform: Platform<'_>,
     ) -> Result<()> {
-        self.camera.handle_event(&mut event, &mut platform);
+        self.camera.handle_event(&mut event);
         starter_kit::close_when_asked(event, platform);
         Ok(())
     }

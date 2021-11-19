@@ -255,7 +255,7 @@ impl MainLoop for App {
             );
         }
 
-        let (ret, cameras) = self.camera.get_matrices(platform)?;
+        let (ret, cameras) = self.camera.get_matrices_prefix(platform)?;
 
         self.scene_ubo.upload(
             self.starter_kit.frame,

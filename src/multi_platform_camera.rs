@@ -20,39 +20,46 @@ impl MultiPlatformCamera {
         }
     }
 
-    pub fn get_matrices(&self, platform: &Platform) -> Result<(PlatformReturn, [f32; 4 * 4 * 2])> {
-        let prefix = match self {
+    /// Get the prefix matrix of this camera
+    pub fn get_prefix(&self, platform: &Platform) -> Matrix4<f32> {
+        match self {
             Self::Winit(arcball) => arcball.matrix(),
             Self::OpenXr => Matrix4::identity(),
-        };
-        platform_camera_prefix(platform, bytemuck::cast(*prefix.as_ref()))
+        }
     }
 
+    /// Get the prefix matrix of this camera (appended with VR matrices in VR mode)
+    pub fn get_matrices_prefix(&self, platform: &Platform) -> Result<(PlatformReturn, [f32; 4 * 4 * 2])> {
+        platform_camera_prefix(platform, self.get_prefix(platform))
+    }
+
+    /// Handle a platform event; Returns true if the event was consumed.
     pub fn handle_event(
         &mut self,
-        event: &mut PlatformEvent<'_, '_>,
-        _platform: &mut Platform<'_>,
-    ) {
+        event: &PlatformEvent<'_, '_>,
+    ) -> bool {
         match (self, event) {
             (Self::Winit(winit_arcball), PlatformEvent::Winit(event)) => {
                 if let winit::event::Event::WindowEvent { event, .. } = event {
-                    winit_arcball.handle_events(event);
+                    winit_arcball.handle_events(event)
+                } else {
+                    false
                 }
             }
-            (Self::OpenXr, PlatformEvent::OpenXr(_)) => (),
+            (Self::OpenXr, PlatformEvent::OpenXr(_)) => false,
             _ => panic!("{}", PLATFORM_WARNING),
         }
     }
 }
 
 /// Create the specified PlatformReturn and return camera matrices for one or both eyes, prefixed with the given 4x4 matrix
-pub fn platform_camera_prefix(platform: &Platform, prefix: [f32; 4 * 4]) -> Result<(PlatformReturn, [f32; 4 * 4 * 2])> {
+pub fn platform_camera_prefix(platform: &Platform, prefix: Matrix4<f32>) -> Result<(PlatformReturn, [f32; 4 * 4 * 2])> {
     match platform {
         // Winit mode
         #[cfg(feature = "winit")]
         Platform::Winit { .. } => {
             let mut data = [0.0; 4 * 4 * 2];
-            data[..prefix.len()].copy_from_slice(&prefix);
+            data[..prefix.len()].copy_from_slice(prefix.as_slice());
             Ok((PlatformReturn::Winit, data))
         }
         // OpenXR mode
@@ -61,7 +68,6 @@ pub fn platform_camera_prefix(platform: &Platform, prefix: [f32; 4 * 4]) -> Resu
             xr_core,
             frame_state,
         } => {
-            let prefix = Matrix4::from_row_slice(&prefix);
             let (_, views) = xr_core.session.locate_views(
                 openxr::ViewConfigurationType::PRIMARY_STEREO,
                 frame_state.expect("No frame state").predicted_display_time,

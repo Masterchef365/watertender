@@ -27,7 +27,8 @@ impl WinitArcBall {
         }
     }
 
-    pub fn handle_events(&mut self, event: &WindowEvent) {
+    /// Handle a WindowEvent. Returns `true` if the event was consumed and `false` otherwise.
+    pub fn handle_events(&mut self, event: &WindowEvent) -> bool {
         match event {
             WindowEvent::CursorMoved { position, .. } => {
                 let &PhysicalPosition { x, y } = position;
@@ -41,11 +42,18 @@ impl WinitArcBall {
                     }
                 }
                 self.last_mouse_position = Some((x, y));
+                true
             }
             WindowEvent::MouseInput { state, button, .. } => match button {
-                MouseButton::Left => self.left_is_clicked = *state == ElementState::Pressed,
-                MouseButton::Right => self.right_is_clicked = *state == ElementState::Pressed,
-                _ => (),
+                MouseButton::Left => {
+                    self.left_is_clicked = *state == ElementState::Pressed;
+                    true
+                },
+                MouseButton::Right => {
+                    self.right_is_clicked = *state == ElementState::Pressed;
+                    true
+                }
+                _ => false,
             },
             WindowEvent::MouseWheel { delta, .. } => {
                 if let MouseScrollDelta::LineDelta(_x, y) = delta {
@@ -54,12 +62,14 @@ impl WinitArcBall {
                         self.inner.distance = 0.01;
                     }
                 }
+                true
             }
             WindowEvent::Resized(size) => {
                 self.width = size.width;
                 self.height = size.height;
+                true
             }
-            _ => (),
+            _ => false
         }
     }
 
