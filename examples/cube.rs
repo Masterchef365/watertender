@@ -35,7 +35,7 @@ unsafe impl bytemuck::Pod for SceneData {}
 
 impl MainLoop for App {
     fn new(core: &SharedCore, mut platform: Platform<'_>, _: ()) -> Result<Self> {
-        let mut starter_kit = StarterKit::new(core.clone(), &mut platform)?;
+        let mut starter_kit = StarterKit::new(core.clone(), &mut platform, Default::default())?;
 
         // Camera
         let camera = MultiPlatformCamera::new(&mut platform);
@@ -126,6 +126,7 @@ impl MainLoop for App {
             vk::PrimitiveTopology::TRIANGLE_LIST,
             starter_kit.render_pass,
             pipeline_layout,
+            starter_kit.msaa_samples
         )?;
 
         // Mesh uploads
@@ -219,6 +220,15 @@ impl MainLoop for App {
 impl SyncMainLoop for App {
     fn winit_sync(&self) -> (vk::Semaphore, vk::Semaphore) {
         self.starter_kit.winit_sync()
+    }
+}
+
+impl Drop for App {
+    fn drop(&mut self) {
+        unsafe {
+            self.starter_kit.core.device.destroy_descriptor_pool(Some(self.descriptor_pool), None);
+            self.starter_kit.core.device.destroy_descriptor_set_layout(Some(self.descriptor_set_layout), None);
+        }
     }
 }
 
