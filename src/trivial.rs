@@ -1,10 +1,29 @@
-use watertender::prelude::*;
-use defaults::FRAMES_IN_FLIGHT;
+use crate::prelude::*;
+use crate::defaults::FRAMES_IN_FLIGHT;
 use anyhow::Result;
 
+pub fn draw(draw: DrawList, vr: bool) -> Result<()> {
+    let info = AppInfo::default().validation(cfg!(debug_assertions));
+    launch::<App, DrawList>(info, vr, draw)
+}
+
+/// A list of meshes to draw
+pub type DrawList = Vec<DrawData>;
+
+/// A mesh and the primitive it is constructed of
+#[derive(Clone)]
+pub struct DrawData {
+    pub indices: Vec<u32>,
+    pub vertices: Vec<Vertex>,
+    pub primitive: Primitive,
+}
+
 struct App {
-    rainbow_cube: ManagedMesh,
-    pipeline: vk::Pipeline,
+    draw: Vec<(ManagedMesh, Primitive)>,
+
+    point_pipeline: vk::Pipeline,
+    line_pipeline: vk::Pipeline,
+    tri_pipeline: vk::Pipeline,
     pipeline_layout: vk::PipelineLayout,
 
     descriptor_sets: Vec<vk::DescriptorSet>,
@@ -17,10 +36,21 @@ struct App {
     starter_kit: StarterKit,
 }
 
-fn main() -> Result<()> {
-    let info = AppInfo::default().validation(true);
-    let vr = std::env::args().count() > 1;
-    launch::<App, _>(info, vr, ())
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum Primitive {
+    Points,
+    Lines,
+    Triangles,
+}
+
+impl Into<vk::PrimitiveTopology> for Primitive {
+    fn into(self) -> vk::PrimitiveTopology {
+        match self {
+            Primitive::Points => vk::PrimitiveTopology::POINT_LIST,
+            Primitive::Lines => vk::PrimitiveTopology::LINE_LIST,
+            Primitive::Triangles => vk::PrimitiveTopology::TRIANGLE_LIST,
+        }
+    }
 }
 
 #[repr(C)]
@@ -33,9 +63,9 @@ struct SceneData {
 unsafe impl bytemuck::Zeroable for SceneData {}
 unsafe impl bytemuck::Pod for SceneData {}
 
-impl MainLoop for App {
-    fn new(core: &SharedCore, mut platform: Platform<'_>, _: ()) -> Result<Self> {
-        let mut starter_kit = StarterKit::new(core.clone(), &mut platform)?;
+impl MainLoop<DrawList> for App {
+    fn new(core: &SharedCore, mut platform: Platform<'_>, draw_data: DrawList) -> Result<Self> {
+        let mut starter_kit = StarterKit::new(core.clone(), &mut platform, Default::default())?;
 
         // Camera
         let camera = MultiPlatformCamera::new(&mut platform);
@@ -118,24 +148,51 @@ impl MainLoop for App {
         let pipeline_layout =
             unsafe { core.device.create_pipeline_layout(&create_info, None, None) }.result()?;
 
-        // Pipeline
-        let pipeline = shader(
+        // Pipelines
+        let unlit_vert = include_bytes!("../shaders/unlit.vert.spv");
+        let unlit_frag = include_bytes!("../shaders/unlit.frag.spv");
+
+        let point_pipeline = shader(
             core,
-            &std::fs::read("shaders/unlit.vert.spv")?,
-            &std::fs::read("shaders/unlit.frag.spv")?,
-            vk::PrimitiveTopology::TRIANGLE_LIST,
+            unlit_vert,
+            unlit_frag,
+            Primitive::Points.into(),
             starter_kit.render_pass,
             pipeline_layout,
+            starter_kit.msaa_samples,
+        )?;
+
+        let line_pipeline = shader(
+            core,
+            unlit_vert,
+            unlit_frag,
+            Primitive::Lines.into(),
+            starter_kit.render_pass,
+            pipeline_layout,
+            starter_kit.msaa_samples,
+        )?;
+
+        let tri_pipeline = shader(
+            core,
+            unlit_vert,
+            unlit_frag,
+            Primitive::Triangles.into(),
+            starter_kit.render_pass,
+            pipeline_layout,
+            starter_kit.msaa_samples,
         )?;
 
         // Mesh uploads
-        let (vertices, indices) = rainbow_cube();
-        let rainbow_cube = upload_mesh(
-            &mut starter_kit.staging_buffer,
-            starter_kit.command_buffers[0],
-            &vertices,
-            &indices,
-        )?;
+        let mut draw = vec![];
+        for data in draw_data {
+            let mesh = upload_mesh(
+                &mut starter_kit.staging_buffer,
+                starter_kit.command_buffers[0],
+                &data.vertices,
+                &data.indices,
+            )?;
+            draw.push((mesh, data.primitive));
+        }
 
         Ok(Self {
             camera,
@@ -145,8 +202,10 @@ impl MainLoop for App {
             anim: 0.0,
             pipeline_layout,
             scene_ubo,
-            rainbow_cube,
-            pipeline,
+            draw,
+            point_pipeline,
+            line_pipeline,
+            tri_pipeline,
             starter_kit,
         })
     }
@@ -171,17 +230,23 @@ impl MainLoop for App {
             );
 
             // Draw cmds
-            core.device.cmd_bind_pipeline(
-                command_buffer,
-                vk::PipelineBindPoint::GRAPHICS,
-                self.pipeline,
-            );
+            for filter in [Primitive::Points, Primitive::Lines, Primitive::Triangles] {
+                core.device.cmd_bind_pipeline(
+                    command_buffer,
+                    vk::PipelineBindPoint::GRAPHICS,
+                    match filter {
+                        Primitive::Points => self.point_pipeline,
+                        Primitive::Lines => self.line_pipeline,
+                        Primitive::Triangles => self.tri_pipeline,
+                    }
+                );
 
-            draw_mesh(
-                core,
-                command_buffer,
-                &self.rainbow_cube,
-            );
+                for (mesh, primitive) in &self.draw {
+                    if *primitive == filter {
+                        draw_mesh(core, command_buffer, &mesh);
+                    }
+                }
+            }
         }
 
         let (ret, cameras) = self.camera.get_matrices(&platform)?;
@@ -193,6 +258,8 @@ impl MainLoop for App {
                 anim: self.anim,
             },
         )?;
+
+        self.anim += 1.0;
 
         // End draw cmds
         self.starter_kit.end_command_buffer(cmd)?;
@@ -216,28 +283,22 @@ impl MainLoop for App {
     }
 }
 
-impl SyncMainLoop for App {
+impl SyncMainLoop<DrawList> for App {
     fn winit_sync(&self) -> (vk::Semaphore, vk::Semaphore) {
         self.starter_kit.winit_sync()
     }
 }
 
-fn rainbow_cube() -> (Vec<Vertex>, Vec<u32>) {
-    let vertices = vec![
-        Vertex::new([-1.0, -1.0, -1.0], [0.0, 1.0, 1.0]),
-        Vertex::new([1.0, -1.0, -1.0], [1.0, 0.0, 1.0]),
-        Vertex::new([1.0, 1.0, -1.0], [1.0, 1.0, 0.0]),
-        Vertex::new([-1.0, 1.0, -1.0], [0.0, 1.0, 1.0]),
-        Vertex::new([-1.0, -1.0, 1.0], [1.0, 0.0, 1.0]),
-        Vertex::new([1.0, -1.0, 1.0], [1.0, 1.0, 0.0]),
-        Vertex::new([1.0, 1.0, 1.0], [0.0, 1.0, 1.0]),
-        Vertex::new([-1.0, 1.0, 1.0], [1.0, 0.0, 1.0]),
-    ];
-
-    let indices = vec![
-        3, 1, 0, 2, 1, 3, 2, 5, 1, 6, 5, 2, 6, 4, 5, 7, 4, 6, 7, 0, 4, 3, 0, 7, 7, 2, 3, 6, 2, 7,
-        0, 5, 4, 1, 5, 0,
-    ];
-
-    (vertices, indices)
+impl Drop for App {
+    fn drop(&mut self) {
+        unsafe {
+            self.starter_kit.core.device.device_wait_idle().unwrap();
+            self.starter_kit.core.device.destroy_descriptor_pool(Some(self.descriptor_pool), None);
+            self.starter_kit.core.device.destroy_descriptor_set_layout(Some(self.descriptor_set_layout), None);
+            self.starter_kit.core.device.destroy_pipeline_layout(Some(self.pipeline_layout), None);
+            for pipeline in [self.tri_pipeline, self.line_pipeline, self.point_pipeline] {
+                self.starter_kit.core.device.destroy_pipeline(Some(pipeline), None);
+            }
+        }
+    }
 }

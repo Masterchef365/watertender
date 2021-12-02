@@ -1,8 +1,8 @@
-use crate::shortcuts::{memory::UsageFlags, ManagedBuffer, ManagedImage};
+use crate::{memory::{UsageFlags, ManagedBuffer, ManagedImage}};
 use crate::SharedCore;
-use anyhow::Result;
-use erupt::vk;
+use anyhow::{Result, Context};
 use bytemuck::Pod;
+use erupt::vk;
 
 pub struct StagingBuffer {
     buffer: ManagedBuffer,
@@ -34,7 +34,44 @@ impl StagingBuffer {
             .sharing_mode(vk::SharingMode::EXCLUSIVE);
         self.upload_buffer_bytes(command_buffer, ci, bytemuck::cast_slice(data))
     }
-    
+
+    /// Update a buffer on the device using the staging buffer
+    /// Assumes we are actively recording a command buffer
+    /// Note: This SHOULD NEVER be called on the same buffer more than once per frame!
+    /// This is because that buffer would be overwritten
+    pub fn update_buffer_bytes(
+        &mut self,
+        command_buffer: vk::CommandBuffer,
+        gpu_buffer: &mut ManagedBuffer,
+        data: &[u8],
+    ) -> Result<()> {
+        // Expand our internal buffer to match the size of the data to be uploaded
+        let data_len: u64 = data.len() as u64;
+        if data_len > self.current_size {
+            self.current_size = data_len;
+            self.buffer = Self::build_staging_buffer(self.core.clone(), self.current_size).context("Failed to alloc staging buffer")?;
+        }
+
+        // Write to the staging buffer
+        self.buffer.write_bytes(0, bytemuck::cast_slice(data))?;
+
+        unsafe {
+            let region = vk::BufferCopyBuilder::new()
+                .size(data_len)
+                .src_offset(0)
+                .dst_offset(0);
+
+            self.core.device.cmd_copy_buffer(
+                command_buffer,
+                self.buffer.instance(),
+                gpu_buffer.instance(),
+                &[region],
+            );
+        }
+
+        Ok(())
+    }
+
     // TODO: Make a batched upload option? (So that you don't have to do a million queue idles...
     // TODO: This should also probably use a transfer queue...
     // TODO: Multi-part uploads for BIG data?
@@ -45,20 +82,11 @@ impl StagingBuffer {
         mut ci: vk::BufferCreateInfoBuilder<'static>,
         data: &[u8],
     ) -> Result<ManagedBuffer> {
-        // Expand our internal buffer to match the size of the data to be uploaded
-        if ci.size > self.current_size {
-            self.current_size = ci.size;
-            self.buffer = Self::build_staging_buffer(self.core.clone(), self.current_size)?;
-        }
-
-        // Write to the staging buffer
-        self.buffer.write_bytes(0, bytemuck::cast_slice(data))?;
-
         // Create the final buffer
         ci.usage |= vk::BufferUsageFlags::TRANSFER_DST;
-        let gpu_buffer = ManagedBuffer::new(self.core.clone(), ci, UsageFlags::FAST_DEVICE_ACCESS)?;
+        let mut gpu_buffer = ManagedBuffer::new(self.core.clone(), ci, UsageFlags::FAST_DEVICE_ACCESS).context("Failed to allocate device buffer")?;
 
-        // Upload to this new buffer
+        // Record command buffer to upload to gpu_buffer
         unsafe {
             self.core
                 .device
@@ -70,17 +98,7 @@ impl StagingBuffer {
                 .begin_command_buffer(command_buffer, &begin_info)
                 .result()?;
 
-            let region = vk::BufferCopyBuilder::new()
-                .size(ci.size)
-                .src_offset(0)
-                .dst_offset(0);
-
-            self.core.device.cmd_copy_buffer(
-                command_buffer,
-                self.buffer.instance(),
-                gpu_buffer.instance(),
-                &[region],
-            );
+            self.update_buffer_bytes(command_buffer, &mut gpu_buffer, data)?;
 
             self.core
                 .device
@@ -155,14 +173,14 @@ impl StagingBuffer {
         // Expand our internal buffer to match the size of the data to be uploaded
         if data.len() as u64 > self.current_size {
             self.current_size = data.len() as u64;
-            self.buffer = Self::build_staging_buffer(self.core.clone(), self.current_size)?;
+            self.buffer = Self::build_staging_buffer(self.core.clone(), self.current_size).context("Failed to build staging buffer")?;
         }
 
         // Write to the staging buffer
         self.buffer.write_bytes(0, data)?;
 
         // Create the final buffer
-        let gpu_image = ManagedImage::new(self.core.clone(), ci, UsageFlags::FAST_DEVICE_ACCESS)?;
+        let gpu_image = ManagedImage::new(self.core.clone(), ci, UsageFlags::FAST_DEVICE_ACCESS).context("Failed to allocate GPU image")?;
 
         // NOTE: image_layout must be one of VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL, or VK_IMAGE_LAYOUT_SHARED_PRESENT_KHR
         // Refer to: https://www.khronos.org/registry/vulkan/specs/1.2-extensions/man/html/vkCmdCopyBufferToImage.html
