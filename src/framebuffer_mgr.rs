@@ -11,6 +11,7 @@ use gpu_alloc::UsageFlags;
 pub struct FramebufferManager {
     internals: Option<Internals>,
     core: SharedCore,
+    msaa_samples: vk::SampleCountFlagBits,
     vr: bool,
 }
 
@@ -18,18 +19,46 @@ struct Internals {
     pub extent: vk::Extent2D,
     _depth_image: ManagedImage,
     depth_image_view: vk::ImageView,
+    _color_image: ManagedImage,
+    color_image_view: vk::ImageView,
     frames: Vec<Frame>,
 }
 
 struct Frame {
     pub framebuffer: vk::Framebuffer,
-    pub image_view: vk::ImageView,
+    pub swapchain_image_view: vk::ImageView,
+}
+
+/// Return the largest supported sample count flag up to and including `samples`
+pub fn max_samples(core: &Core, samples: u16) -> vk::SampleCountFlagBits {
+    let counts = core.device_properties.limits.framebuffer_color_sample_counts 
+        & core.device_properties.limits.framebuffer_depth_sample_counts;
+
+    let preferences = [
+        (vk::SampleCountFlagBits::_64, 64),
+        (vk::SampleCountFlagBits::_32, 32),
+        (vk::SampleCountFlagBits::_16, 16),
+        (vk::SampleCountFlagBits::_8, 8),
+        (vk::SampleCountFlagBits::_4, 4),
+        (vk::SampleCountFlagBits::_2, 2),
+    ];
+
+    for &(vk, sm) in &preferences {
+        if sm <= samples && counts & vk.bitmask() != vk::SampleCountFlags::empty() {
+            return vk;
+        }
+    }
+
+    return vk::SampleCountFlagBits::_1;
 }
 
 impl FramebufferManager {
-    pub fn new(core: SharedCore, vr: bool) -> Self {
+    /// Create a new framebuffer manager. NOTE: msaa_samples is assumed to be valid for this
+    /// device. Please check core.
+    pub fn new(core: SharedCore, vr: bool, msaa_samples: vk::SampleCountFlagBits) -> Self {
         Self {
             internals: None,
+            msaa_samples,
             core,
             vr,
         }
@@ -76,7 +105,7 @@ impl FramebufferManager {
             .tiling(vk::ImageTiling::OPTIMAL)
             .initial_layout(vk::ImageLayout::UNDEFINED)
             .usage(vk::ImageUsageFlags::DEPTH_STENCIL_ATTACHMENT)
-            .samples(vk::SampleCountFlagBits::_1)
+            .samples(self.msaa_samples)
             .sharing_mode(vk::SharingMode::EXCLUSIVE);
 
         let depth_image = ManagedImage::new(
@@ -101,12 +130,55 @@ impl FramebufferManager {
         let depth_image_view =
             unsafe { self.core.device.create_image_view(&create_info, None, None) }.result()?;
 
+        // Create color image
+        let create_info = vk::ImageCreateInfoBuilder::new()
+            .image_type(vk::ImageType::_2D)
+            .extent(
+                vk::Extent3DBuilder::new()
+                    .width(extent.width)
+                    .height(extent.height)
+                    .depth(1)
+                    .build(),
+            )
+            .mip_levels(1)
+            .array_layers(layers)
+            .format(COLOR_FORMAT)
+            .tiling(vk::ImageTiling::OPTIMAL)
+            .initial_layout(vk::ImageLayout::UNDEFINED)
+            .usage(vk::ImageUsageFlags::COLOR_ATTACHMENT | vk::ImageUsageFlags::TRANSIENT_ATTACHMENT)
+            .samples(self.msaa_samples)
+            .sharing_mode(vk::SharingMode::EXCLUSIVE);
+
+        let color_image = ManagedImage::new(
+            self.core.clone(),
+            create_info,
+            UsageFlags::FAST_DEVICE_ACCESS,
+        )?;
+
+        let create_info = vk::ImageViewCreateInfoBuilder::new()
+            .image(color_image.instance())
+            .view_type(vk::ImageViewType::_2D)
+            .format(COLOR_FORMAT)
+            .subresource_range(
+                vk::ImageSubresourceRangeBuilder::new()
+                    .aspect_mask(vk::ImageAspectFlags::COLOR)
+                    .base_mip_level(0)
+                    .level_count(1)
+                    .base_array_layer(0)
+                    .layer_count(layers)
+                    .build(),
+            );
+        let color_image_view =
+            unsafe { self.core.device.create_image_view(&create_info, None, None) }.result()?;
+
+
         // Build swapchain image views and buffers
         let frames = swapchain_images
             .iter()
-            .map(|&image| {
+            .map(|&swapchain_image| {
+                // Create swapchain images views
                 let create_info = vk::ImageViewCreateInfoBuilder::new()
-                    .image(image)
+                    .image(swapchain_image)
                     .view_type(vk::ImageViewType::_2D)
                     .format(COLOR_FORMAT)
                     .components(vk::ComponentMapping {
@@ -125,11 +197,11 @@ impl FramebufferManager {
                             .build(),
                     );
 
-                let image_view =
+                let swapchain_image_view =
                     unsafe { self.core.device.create_image_view(&create_info, None, None) }
                         .result()?;
 
-                let attachments = [image_view, depth_image_view];
+                let attachments = [color_image_view, depth_image_view, swapchain_image_view];
                 let create_info = vk::FramebufferCreateInfoBuilder::new()
                     .render_pass(render_pass)
                     .attachments(&attachments)
@@ -143,9 +215,10 @@ impl FramebufferManager {
                         .create_framebuffer(&create_info, None, None)
                 }
                 .result()?;
+
                 Ok(Frame {
                     framebuffer,
-                    image_view,
+                    swapchain_image_view,
                 })
             })
             .collect::<Result<Vec<_>>>()?;
@@ -153,6 +226,8 @@ impl FramebufferManager {
         self.internals = Some(Internals {
             _depth_image: depth_image,
             depth_image_view,
+            _color_image: color_image,
+            color_image_view,
             extent,
             frames,
         });
@@ -183,8 +258,10 @@ impl Internals {
             for frame in self.frames.drain(..) {
                 core.device
                     .destroy_framebuffer(Some(frame.framebuffer), None);
-                core.device.destroy_image_view(Some(frame.image_view), None);
+                core.device.destroy_image_view(Some(frame.swapchain_image_view), None);
             }
+            core.device
+                .destroy_image_view(Some(self.color_image_view), None);
             core.device
                 .destroy_image_view(Some(self.depth_image_view), None);
         }

@@ -1,16 +1,17 @@
-use watertender::prelude::*;
-use defaults::FRAMES_IN_FLIGHT;
 use anyhow::Result;
+use shortcuts::{
+    launch,
+    mesh::*,
+    shader,
+    starter_kit::{self, StarterKit},
+    FrameDataUbo, MultiPlatformCamera, Vertex,
+};
+use watertender::*;
 
 struct App {
     rainbow_cube: ManagedMesh,
     pipeline: vk::Pipeline,
     pipeline_layout: vk::PipelineLayout,
-
-    descriptor_sets: Vec<vk::DescriptorSet>,
-    descriptor_pool: vk::DescriptorPool,
-    descriptor_set_layout: vk::DescriptorSetLayout,
-
     scene_ubo: FrameDataUbo<SceneData>,
     camera: MultiPlatformCamera,
     anim: f32,
@@ -20,7 +21,7 @@ struct App {
 fn main() -> Result<()> {
     let info = AppInfo::default().validation(true);
     let vr = std::env::args().count() > 1;
-    launch::<App, _>(info, vr, ())
+    launch::<App>(info, vr)
 }
 
 #[repr(C)]
@@ -34,76 +35,16 @@ unsafe impl bytemuck::Zeroable for SceneData {}
 unsafe impl bytemuck::Pod for SceneData {}
 
 impl MainLoop for App {
-    fn new(core: &SharedCore, mut platform: Platform<'_>, _: ()) -> Result<Self> {
+    fn new(core: &SharedCore, mut platform: Platform<'_>) -> Result<Self> {
         let mut starter_kit = StarterKit::new(core.clone(), &mut platform, Default::default())?;
 
         // Camera
         let camera = MultiPlatformCamera::new(&mut platform);
 
         // Scene data
-        let scene_ubo = FrameDataUbo::new(core.clone(), FRAMES_IN_FLIGHT)?;
+        let scene_ubo = FrameDataUbo::new(core.clone(), starter_kit::FRAMES_IN_FLIGHT)?;
 
-        // Create descriptor set layout
-        const FRAME_DATA_BINDING: u32 = 0;
-        let bindings = [
-            vk::DescriptorSetLayoutBindingBuilder::new()
-                .binding(FRAME_DATA_BINDING)
-                .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
-                .descriptor_count(1)
-                .stage_flags(vk::ShaderStageFlags::ALL_GRAPHICS),
-        ];
-
-        let descriptor_set_layout_ci =
-            vk::DescriptorSetLayoutCreateInfoBuilder::new().bindings(&bindings);
-
-        let descriptor_set_layout = unsafe {
-            core.device
-                .create_descriptor_set_layout(&descriptor_set_layout_ci, None, None)
-        }
-        .result()?;
-
-        // Create descriptor pool
-        let pool_sizes = [
-            vk::DescriptorPoolSizeBuilder::new()
-                ._type(vk::DescriptorType::UNIFORM_BUFFER)
-                .descriptor_count(FRAMES_IN_FLIGHT as _),
-        ];
-
-        let create_info = vk::DescriptorPoolCreateInfoBuilder::new()
-            .pool_sizes(&pool_sizes)
-            .max_sets((FRAMES_IN_FLIGHT * 2) as _);
-
-        let descriptor_pool =
-            unsafe { core.device.create_descriptor_pool(&create_info, None, None) }.result()?;
-
-        // Create descriptor sets
-        let layouts = vec![descriptor_set_layout; FRAMES_IN_FLIGHT];
-        let create_info = vk::DescriptorSetAllocateInfoBuilder::new()
-            .descriptor_pool(descriptor_pool)
-            .set_layouts(&layouts);
-
-        let descriptor_sets =
-            unsafe { core.device.allocate_descriptor_sets(&create_info) }.result()?;
-
-        // Write descriptor sets
-        for (frame, &descriptor_set) in descriptor_sets.iter().enumerate() {
-            let frame_data_bi = [scene_ubo.descriptor_buffer_info(frame)];
-            let writes = [
-                vk::WriteDescriptorSetBuilder::new()
-                    .buffer_info(&frame_data_bi)
-                    .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
-                    .dst_set(descriptor_set)
-                    .dst_binding(FRAME_DATA_BINDING)
-                    .dst_array_element(0),
-            ];
-
-            unsafe {
-                core.device.update_descriptor_sets(&writes, &[]);
-            }
-        }
-
-
-        let descriptor_set_layouts = [descriptor_set_layout];
+        let descriptor_set_layouts = [scene_ubo.descriptor_set_layout()];
 
         // Pipeline layout
         let push_constant_ranges = [vk::PushConstantRangeBuilder::new()
@@ -121,12 +62,12 @@ impl MainLoop for App {
         // Pipeline
         let pipeline = shader(
             core,
-            &std::fs::read("shaders/unlit.vert.spv")?,
-            &std::fs::read("shaders/unlit.frag.spv")?,
+            include_bytes!("unlit.vert.spv"),
+            include_bytes!("unlit.frag.spv"),
             vk::PrimitiveTopology::TRIANGLE_LIST,
             starter_kit.render_pass,
             pipeline_layout,
-            starter_kit.msaa_samples
+            starter_kit.msaa_samples,
         )?;
 
         // Mesh uploads
@@ -140,9 +81,6 @@ impl MainLoop for App {
 
         Ok(Self {
             camera,
-            descriptor_set_layout,
-            descriptor_sets,
-            descriptor_pool,
             anim: 0.0,
             pipeline_layout,
             scene_ubo,
@@ -167,7 +105,7 @@ impl MainLoop for App {
                 vk::PipelineBindPoint::GRAPHICS,
                 self.pipeline_layout,
                 0,
-                &[self.descriptor_sets[self.starter_kit.frame]],
+                &[self.scene_ubo.descriptor_set(self.starter_kit.frame)],
                 &[],
             );
 
@@ -178,14 +116,14 @@ impl MainLoop for App {
                 self.pipeline,
             );
 
-            draw_mesh(
+            draw_meshes(
                 core,
                 command_buffer,
-                &self.rainbow_cube,
+                std::slice::from_ref(&&self.rainbow_cube),
             );
         }
 
-        let (ret, cameras) = self.camera.get_matrices(&platform)?;
+        let (ret, cameras) = self.camera.get_matrices(platform)?;
 
         self.scene_ubo.upload(
             self.starter_kit.frame,
@@ -220,15 +158,6 @@ impl MainLoop for App {
 impl SyncMainLoop for App {
     fn winit_sync(&self) -> (vk::Semaphore, vk::Semaphore) {
         self.starter_kit.winit_sync()
-    }
-}
-
-impl Drop for App {
-    fn drop(&mut self) {
-        unsafe {
-            self.starter_kit.core.device.destroy_descriptor_pool(Some(self.descriptor_pool), None);
-            self.starter_kit.core.device.destroy_descriptor_set_layout(Some(self.descriptor_set_layout), None);
-        }
     }
 }
 
