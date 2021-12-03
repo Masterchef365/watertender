@@ -24,7 +24,7 @@ pub struct XrCore {
 }
 
 /// Launch an `App` using OpenXR as a surface and input mechanism for VR
-pub fn launch<M: MainLoop>(info: AppInfo) -> Result<()> {
+pub fn launch<M: MainLoop<T>, T>(info: AppInfo, userdata: T) -> Result<()> {
     // Handle interrupts gracefully
     let running = Arc::new(AtomicBool::new(true));
     let r = running.clone();
@@ -41,6 +41,7 @@ pub fn launch<M: MainLoop>(info: AppInfo) -> Result<()> {
             xr_core: &xr_core,
             frame_state: None,
         },
+        userdata,
     )?;
 
     let mut event_storage = xr::EventDataBuffer::new();
