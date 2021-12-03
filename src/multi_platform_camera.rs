@@ -1,11 +1,14 @@
 use crate::mainloop::{Platform, PlatformEvent, PlatformReturn};
 use crate::winit_arcball::WinitArcBall;
-use crate::xr_camera;
 use anyhow::Result;
 use nalgebra::Matrix4;
 
+#[cfg(feature = "openxr")]
+use crate::xr_camera;
+
 pub enum MultiPlatformCamera {
     Winit(WinitArcBall),
+    #[cfg(feature = "openxr")]
     OpenXr,
 }
 
@@ -15,6 +18,7 @@ const PLATFORM_WARNING: &str =
 impl MultiPlatformCamera {
     pub fn new(platform: &mut Platform<'_>) -> Self {
         match platform {
+            #[cfg(feature = "openxr")]
             Platform::OpenXr { .. } => Self::OpenXr,
             Platform::Winit { .. } => Self::Winit(WinitArcBall::default()),
         }
@@ -24,6 +28,7 @@ impl MultiPlatformCamera {
     pub fn get_prefix(&self) -> Matrix4<f32> {
         match self {
             Self::Winit(arcball) => arcball.matrix(),
+            #[cfg(feature = "openxr")]
             Self::OpenXr => Matrix4::identity(),
         }
     }
@@ -46,7 +51,9 @@ impl MultiPlatformCamera {
                     false
                 }
             }
+            #[cfg(feature = "openxr")]
             (Self::OpenXr, PlatformEvent::OpenXr(_)) => false,
+            #[allow(unreachable_patterns)]
             _ => panic!("{}", PLATFORM_WARNING),
         }
     }
@@ -56,7 +63,6 @@ impl MultiPlatformCamera {
 pub fn platform_camera_prefix(platform: &Platform, prefix: Matrix4<f32>) -> Result<(PlatformReturn, [f32; 4 * 4 * 2])> {
     match platform {
         // Winit mode
-        #[cfg(feature = "winit")]
         Platform::Winit { .. } => {
             let mut data = [0.0; 4 * 4 * 2];
             data[..prefix.len()].copy_from_slice(prefix.as_slice());

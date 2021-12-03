@@ -5,12 +5,12 @@ authors = ["Masterchef365 <duncan.freeman1@gmail.com>"]
 edition = "2018"
 
 [features]
-default = ["winit", "openxr", "nalgebra"]
+default = ["nalgebra"]
 
 [dependencies]
 anyhow = "1"
 erupt = "0.18"
-winit = { version = "0.25", optional = true }
+winit = "0.25"
 openxr = { version = "0.14", features = ["static"], optional = true }
 bytemuck = "1.5"
 ctrlc = "3.1"
