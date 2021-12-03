@@ -16,18 +16,18 @@ pub mod headless_backend;
 #[cfg(feature = "nalgebra")]
 pub mod arcball;
 
-#[cfg(all(feature = "nalgebra", feature = "winit"))]
+#[cfg(feature = "nalgebra")]
 pub mod winit_arcball;
 
 #[cfg(all(feature = "nalgebra", feature = "openxr"))]
 pub mod xr_camera;
 
-#[cfg(all(feature = "nalgebra", feature = "openxr", feature = "winit"))]
+#[cfg(feature = "nalgebra")]
 mod multi_platform_camera;
-#[cfg(all(feature = "nalgebra", feature = "openxr", feature = "winit"))]
+#[cfg(feature = "nalgebra")]
 pub use multi_platform_camera::MultiPlatformCamera;
 
-#[cfg(all(feature = "nalgebra", feature = "openxr", feature = "winit"))]
+#[cfg(feature = "nalgebra")]
 pub mod starter_kit;
 
 /// Vulkan implementation supplied by Erupt
@@ -38,19 +38,16 @@ pub mod openxr_backend;
 #[cfg(feature = "openxr")]
 pub use openxr;
 
-#[cfg(feature = "winit")]
 pub mod winit_backend;
-#[cfg(feature = "winit")]
 pub use winit;
 
 /// Mainloop abstraction
-#[cfg(any(feature = "openxr", feature = "winit"))]
 pub mod mainloop;
 
 #[cfg(feature = "nalgebra")]
 pub use nalgebra;
 
-#[cfg(all(feature = "nalgebra", feature = "openxr", feature = "winit"))]
+#[cfg(feature = "nalgebra")]
 pub mod trivial;
 
 /// Go figure
@@ -76,9 +73,8 @@ pub mod prelude {
     };
     pub use erupt::vk;
 
-    #[cfg(any(feature = "openxr", feature = "winit"))]
     pub use super::mainloop::{MainLoop, Platform, PlatformReturn, PlatformEvent, SyncMainLoop, Frame};
 
-    #[cfg(all(feature = "nalgebra", any(feature = "openxr", feature = "winit")))]
+    #[cfg(feature = "nalgebra")]
     pub use super::multi_platform_camera::MultiPlatformCamera;
 }
