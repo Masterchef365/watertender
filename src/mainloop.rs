@@ -45,7 +45,6 @@ pub trait SyncMainLoop<T=()>: MainLoop<T> {
 
 /// Multi-platform
 pub enum Platform<'a> {
-    #[cfg(feature = "winit")]
     Winit {
         window: &'a winit::window::Window,
         control_flow: &'a mut winit::event_loop::ControlFlow, // TODO: Part of PlatformReturn?
@@ -60,7 +59,6 @@ pub enum Platform<'a> {
 impl Platform<'_> {
     pub fn request_exit(&mut self) {
         match self {
-            #[cfg(feature = "winit")]
             Platform::Winit { control_flow, .. } => {
                 **control_flow = winit::event_loop::ControlFlow::Exit;
             },
@@ -74,7 +72,6 @@ impl Platform<'_> {
 
 /// Multi-platform event
 pub enum PlatformEvent<'a, 'b> {
-    #[cfg(feature = "winit")]
     Winit(&'b winit::event::Event<'a, ()>),
     #[cfg(feature = "openxr")]
     OpenXr(&'b openxr::Event<'a>),
@@ -82,7 +79,6 @@ pub enum PlatformEvent<'a, 'b> {
 
 /// Multi-platform return value
 pub enum PlatformReturn {
-    #[cfg(feature = "winit")]
     Winit,
     #[cfg(feature = "openxr")]
     OpenXr(Vec<openxr::View>),

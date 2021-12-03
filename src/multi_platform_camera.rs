@@ -1,10 +1,13 @@
 use crate::mainloop::{Platform, PlatformEvent, PlatformReturn};
 use crate::winit_arcball::WinitArcBall;
-use crate::xr_camera;
 use anyhow::Result;
+
+#[cfg(feature = "openxr")]
+use crate::xr_camera;
 
 pub enum MultiPlatformCamera {
     Winit(WinitArcBall),
+    #[cfg(feature = "openxr")]
     OpenXr,
 }
 
@@ -14,6 +17,7 @@ const PLATFORM_WARNING: &str =
 impl MultiPlatformCamera {
     pub fn new(platform: &mut Platform<'_>) -> Self {
         match platform {
+            #[cfg(feature = "openxr")]
             Platform::OpenXr { .. } => Self::OpenXr,
             Platform::Winit { .. } => Self::Winit(WinitArcBall::default()),
         }
@@ -22,7 +26,6 @@ impl MultiPlatformCamera {
     pub fn get_matrices(&self, platform: &Platform) -> Result<(PlatformReturn, [f32; 4 * 4 * 2])> {
         match (self, platform) {
             // Winit mode
-            #[cfg(feature = "winit")]
             (Self::Winit(winit_arcball), Platform::Winit { .. }) => {
                 let matrix = winit_arcball.matrix();
                 let mut data = [0.0; 32];
@@ -58,6 +61,7 @@ impl MultiPlatformCamera {
                     .for_each(|(o, i)| *o = *i);
                 Ok((PlatformReturn::OpenXr(views), data))
             }
+            #[cfg(unreachable_patterns)]
             _ => panic!("{}", PLATFORM_WARNING),
         }
     }
@@ -73,7 +77,9 @@ impl MultiPlatformCamera {
                     winit_arcball.handle_events(event);
                 }
             }
+            #[cfg(feature = "openxr")]
             (Self::OpenXr, PlatformEvent::OpenXr(_)) => (),
+            #[allow(unreachable_patterns)]
             _ => panic!("{}", PLATFORM_WARNING),
         }
     }
