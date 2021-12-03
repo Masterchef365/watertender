@@ -65,7 +65,7 @@ unsafe impl bytemuck::Pod for SceneData {}
 
 impl MainLoop<DrawList> for App {
     fn new(core: &SharedCore, mut platform: Platform<'_>, draw_data: DrawList) -> Result<Self> {
-        let mut starter_kit = StarterKit::new(core.clone(), &mut platform)?;
+        let mut starter_kit = StarterKit::new(core.clone(), &mut platform, Default::default())?;
 
         // Camera
         let camera = MultiPlatformCamera::new(&mut platform);
@@ -159,6 +159,7 @@ impl MainLoop<DrawList> for App {
             Primitive::Points.into(),
             starter_kit.render_pass,
             pipeline_layout,
+            starter_kit.msaa_samples,
         )?;
 
         let line_pipeline = shader(
@@ -168,6 +169,7 @@ impl MainLoop<DrawList> for App {
             Primitive::Lines.into(),
             starter_kit.render_pass,
             pipeline_layout,
+            starter_kit.msaa_samples,
         )?;
 
         let tri_pipeline = shader(
@@ -177,6 +179,7 @@ impl MainLoop<DrawList> for App {
             Primitive::Triangles.into(),
             starter_kit.render_pass,
             pipeline_layout,
+            starter_kit.msaa_samples,
         )?;
 
         // Mesh uploads
