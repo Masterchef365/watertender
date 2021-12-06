@@ -20,9 +20,12 @@ pub struct StarterKit {
 }
 
 /// Launch a mainloop, and change platform depending on a boolean
-#[cfg(all(feature = "winit", feature = "openxr"))]
 pub fn launch<M: SyncMainLoop<T> + 'static, T>(info: AppInfo, vr: bool, userdata: T) -> anyhow::Result<()> {
     if vr {
+        #[cfg(not(feature = "openxr"))]
+        panic!("Please enable the `openxr` feature!");
+
+        #[cfg(feature = "openxr")]
         crate::openxr_backend::launch::<M, T>(info, userdata)
     } else {
         crate::winit_backend::launch::<M, T>(info, userdata)
@@ -252,6 +255,7 @@ impl StarterKit {
 pub fn close_when_asked(event: PlatformEvent<'_, '_>, platform: Platform<'_>) {
     if let PlatformEvent::Winit(winit::event::Event::WindowEvent { event, .. }) = event {
         if let winit::event::WindowEvent::CloseRequested = event {
+            #[allow(irrefutable_let_patterns)]
             if let Platform::Winit { control_flow, .. } = platform {
                 *control_flow = winit::event_loop::ControlFlow::Exit;
             }
