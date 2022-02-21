@@ -18,10 +18,12 @@ pub struct StarterKit {
 }
 
 /// Launch a mainloop, and change platform depending on a boolean
-#[cfg(all(feature = "winit", feature = "openxr"))]
 pub fn launch<M: SyncMainLoop<T> + 'static, T>(info: AppInfo, vr: bool, userdata: T) -> anyhow::Result<()> {
     if vr {
-        crate::openxr_backend::launch::<M, T>(info, userdata)
+        #[cfg(feature = "openxr")]
+        return crate::openxr_backend::launch::<M, T>(info, userdata);
+        #[cfg(not(feature = "openxr"))]
+        panic!("VR available through the OpenXR features");
     } else {
         crate::winit_backend::launch::<M, T>(info, userdata)
     }

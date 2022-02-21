@@ -1,5 +1,6 @@
 use crate::mainloop::{Platform, PlatformEvent, PlatformReturn};
 use crate::winit_arcball::ArcballController;
+#[cfg(all(feature = "openxr"))]
 use crate::xr_camera;
 use anyhow::Result;
 
@@ -14,6 +15,7 @@ const PLATFORM_WARNING: &str =
 impl MultiPlatformCamera {
     pub fn new(platform: &mut Platform<'_>) -> Self {
         match platform {
+            #[cfg(all(feature = "openxr"))]
             Platform::OpenXr { .. } => Self::OpenXr,
             Platform::Winit { .. } => Self::Winit(ArcballController::default()),
         }
@@ -73,6 +75,7 @@ impl MultiPlatformCamera {
                     winit_arcball.handle_events(event);
                 }
             }
+            #[cfg(feature = "openxr")]
             (Self::OpenXr, PlatformEvent::OpenXr(_)) => (),
             _ => panic!("{}", PLATFORM_WARNING),
         }
