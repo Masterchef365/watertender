@@ -32,6 +32,7 @@ pub mod starter_kit;
 
 /// Vulkan implementation supplied by Erupt
 pub use erupt::vk;
+pub use erupt;
 
 #[cfg(feature = "openxr")]
 pub mod openxr_backend;
